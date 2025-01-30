@@ -76,6 +76,9 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.FileWriter
 import java.io.IOException
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.nio.ShortBuffer
 import java.text.SimpleDateFormat
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.TimeoutException
@@ -258,7 +261,7 @@ class CameraFragment : Fragment() {
             val rawSize = rawSizes.maxByOrNull { it.height * it.width }!!
             imageReaderRAW = ImageReader.newInstance(
                 rawSize.width, rawSize.height, ImageFormat.RAW_SENSOR, 5)   // rawSize 2304x1728
-            Log.d("RawImageReader", "Height: ${rawSize.height} and with${rawSize.width}")
+            Log.d("RawImageReader--", "Height: ${rawSize.height} and with${rawSize.width}")
 
         }
 
@@ -512,6 +515,25 @@ class CameraFragment : Fragment() {
 //
                 val dngFile = createFile(requireContext(), "dng")
                 try {
+
+                    val rawImage = result.image
+                    val rawBuffer = rawImage.planes[0].buffer
+
+//                    val width = rawImage.width
+//                    val height = rawImage.height
+//                    val bayerPattern = CameraCharacteristics.SENSOR_INFO_COLOR_FILTER_ARRANGEMENT_RGGB
+
+//                    val floatArrayInput = convertRawToFloatArray(rawData, width, height)
+//                    Log.d("FloatArrayLogger--", "Array size: ${floatArrayInput.size}")
+
+                    // Log first few elements (for example: first 10 values or entire array if it's small)
+//                    val logLimit = 10  // Limit to log the first 10 elements
+//                    val logValues = floatArrayInput.take(100).joinToString(", ")
+//                    Log.d("rawByteArray", "First 100 values: [$logValues]")
+
+                    // Debug: Log successful conversion
+                    Log.d(TAG, "Normalized float array created for RAW image processing")
+
                     val dngCreator = DngCreator(characteristics, result.metadata)
 
                     FileOutputStream(dngFile).use { dngCreator.writeImage(it, result.image) }
@@ -525,43 +547,48 @@ class CameraFragment : Fragment() {
                     val (jpegFile, bitmap) = convertRawToJpeg(dngFile)
                     Log.d(TAG, "JPEG image saved: ${jpegFile.absolutePath}")
 
+                    // Extact Single channel array from dng file
+
                     // Ensure the Bitmap is not null before running inference
                     if (bitmap != null) {
                         runInferenceOnBitmap(bitmap, interpreter)
                     } else {
                         Log.e("ImageProcessing", "Failed to decode RAW image to Bitmap.")
                     }
+                    val rawData = convertRawToFloatArrayFast(rawImage)
+                    val logValues1 = rawData.take(100).joinToString(", ")
+                    Log.d("rawFloatArray--", "First 100 values: [$logValues1]")
                 } catch (exc: IOException) {
                     Log.e(TAG, "Unable to write DNG image to file", exc)
                     cont.resumeWithException(exc)
                 }
             }
 
-            ImageFormat.DEPTH_JPEG -> {
-                try {
-                    // Save the JPEG visual image
-                    val buffer = result.image.planes[0].buffer
-                    val bytes = ByteArray(buffer.remaining()).apply { buffer.get(this) }
-                    val jpgFile = createFile(requireContext(), "jpg")
-                    FileOutputStream(jpgFile).use { it.write(bytes) }
-                    Log.d(TAG, "JPEG saved: ${jpgFile.absolutePath}")
-
-                    // Save the depth map (second plane)
-                    val depthBuffer = result.image.planes[1].buffer
-                    val depthBytes =
-                        ByteArray(depthBuffer.remaining()).apply { depthBuffer.get(this) }
-                    val depthFile = createFile(requireContext(), "depth")
-                    FileOutputStream(depthFile).use { it.write(depthBytes) }
-                    Log.d(TAG, "Depth map saved: ${depthFile.absolutePath}")
-
-                    // Resume coroutine with the JPEG file (primary file)
-                    cont.resume(jpgFile)
-
-                } catch (exc: IOException) {
-                    Log.e(TAG, "Unable to write Depth JPEG files", exc)
-                    cont.resumeWithException(exc)
-                }
-            }
+//            ImageFormat.DEPTH_JPEG -> {
+//                try {
+//                    // Save the JPEG visual image
+//                    val buffer = result.image.planes[0].buffer
+//                    val bytes = ByteArray(buffer.remaining()).apply { buffer.get(this) }
+//                    val jpgFile = createFile(requireContext(), "jpg")
+//                    FileOutputStream(jpgFile).use { it.write(bytes) }
+//                    Log.d(TAG, "JPEG saved: ${jpgFile.absolutePath}")
+//
+//                    // Save the depth map (second plane)
+//                    val depthBuffer = result.image.planes[1].buffer
+//                    val depthBytes =
+//                        ByteArray(depthBuffer.remaining()).apply { depthBuffer.get(this) }
+//                    val depthFile = createFile(requireContext(), "depth")
+//                    FileOutputStream(depthFile).use { it.write(depthBytes) }
+//                    Log.d(TAG, "Depth map saved: ${depthFile.absolutePath}")
+//
+//                    // Resume coroutine with the JPEG file (primary file)
+//                    cont.resume(jpgFile)
+//
+//                } catch (exc: IOException) {
+//                    Log.e(TAG, "Unable to write Depth JPEG files", exc)
+//                    cont.resumeWithException(exc)
+//                }
+//            }
 
             else -> {
                 val exc = RuntimeException("Unknown image format: ${result.image.format}")
@@ -570,6 +597,60 @@ class CameraFragment : Fragment() {
             }
         }
     }
+
+
+    private fun convertRawToFloatArrayFast(rawImage: Image): FloatArray {
+        val width = rawImage.width
+        val height = rawImage.height
+        val rawBuffer: ByteBuffer = rawImage.planes[0].buffer
+
+        // Ensure the buffer is in the correct byte order (e.g., little-endian) Using this as many camera sensor use little endian
+        rawBuffer.order(ByteOrder.LITTLE_ENDIAN)  // Using this as many camera sensor
+
+        // Create a ShortBuffer view of the ByteBuffer
+        val shortBuffer: ShortBuffer = rawBuffer.asShortBuffer()
+
+        // Create a ShortArray to hold the data
+        val shortArray = ShortArray(shortBuffer.remaining())
+
+        // Copy the data from the ShortBuffer to the ShortArray
+        shortBuffer.get(shortArray)
+        val logValuesSh = shortArray.take(100).joinToString(", ")
+        Log.d("rawShortArray--", "First 100 values: [$logValuesSh]")
+        // Create a FloatArray for the normalized data
+        val floatArray = FloatArray(shortArray.size)
+
+
+        // Normalize the short data to floats
+        for (i in shortArray.indices) {
+            floatArray[i] = shortArray[i].toFloat() / 65535f
+        }
+        val logValues1 = floatArray.take(100).joinToString(", ")
+        Log.d("rawFloatArray--", "First 100 values: [$logValues1]")
+
+
+        return floatArray
+    }
+
+//    private fun convertRawToFloatArray(rawImage: Image): FloatArray {
+//        val width = rawImage.width
+//        val height = rawImage.height
+//        val rawBuffer = rawImage.planes[0].buffer
+//
+//        // Create a FloatArray to store raw pixel data
+//        val rawData = FloatArray(width * height)
+//
+//        var pixelIndex = 0
+//        while (rawBuffer.hasRemaining()) {
+//            val rawValue = rawBuffer.get().toInt() and 0xFF  // Convert byte to unsigned integer
+//            rawData[pixelIndex] = rawValue.toFloat() / 65535f  // Normalize to [0.0, 1.0] range
+//            pixelIndex++
+//        }
+//        val logValues1 = rawData.take(100).joinToString(", ")
+//        Log.d("rawFloatArray--", "First 100 values: [$logValues1]")
+//
+//        return rawData
+//    }
 
     //created this helper function to convert raw image to jpeg ISP
     private fun convertRawToJpeg(rawFile: File): Pair<File, Bitmap?> {
@@ -769,6 +850,31 @@ class CameraFragment : Fragment() {
             Log.e("ModelProcessOutput ----", "Failed to save processed image: ${e.message}", e)
         }
     }
+
+    private fun convertRawToFloatArray(
+        rawData: ByteArray,  // Raw image data from the sensor
+        width: Int,
+        height: Int
+    ): FloatArray {
+        // Create a single-channel float array to store the raw data
+        val singleChannelArray = FloatArray(width * height)
+
+        var pixelIndex = 0
+        for (y in 0 until height) {
+            for (x in 0 until width) {
+                // Convert each raw byte to float and store it in the single-channel array
+                // Assuming rawData contains byte values and we normalize them to float [0, 1]
+                val rawValue = (rawData[pixelIndex].toInt() and 0xFF).toFloat() / 255.0f
+                singleChannelArray[pixelIndex] = rawValue
+                pixelIndex++
+            }
+        }
+
+        return singleChannelArray
+    }
+
+
+
 
 
     private fun saveInputArrayAsImage(inputArray: FloatArray, width: Int, height: Int) {
