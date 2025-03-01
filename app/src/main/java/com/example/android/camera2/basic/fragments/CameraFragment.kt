@@ -840,7 +840,9 @@ class CameraFragment : Fragment() {
 
 
             // After running inference
+//            saveRawProcessedOutput(outputArray1D, outputShape)
             saveProcessedOutput(outputArray1D, outputShape)
+
 
         } catch (e: Exception) {
             Log.e("ModelError", "Error during inference: ${e.message}")
