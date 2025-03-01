@@ -18,8 +18,9 @@ object ModelUtils {
 //        val fileDescriptor = assetManager.openFd("new_model.tflite")
 //        val fileDescriptor = assetManager.openFd("Rawsimple_model.tflite")
 //        val fileDescriptor = assetManager.openFd("Checksimple_model.tflite")
-        val fileDescriptor = assetManager.openFd("Raw124simple_model diff.tflite")
+//        val fileDescriptor = assetManager.openFd("Raw124simple_model diff.tflite")
 //        val fileDescriptor = assetManager.openFd("1C3Kx4Krawsimple_model.tflite")
+        val fileDescriptor = assetManager.openFd("simple_model 17.tflite")
 
 
 
