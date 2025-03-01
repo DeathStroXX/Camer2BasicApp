@@ -180,9 +180,9 @@ class CameraFragment : Fragment() {
 
         try {
             interpreter = ModelUtils.createInterpreter(requireContext(), "model.tflite")
-            Log.d("Model", "Interpreter initialized successfully.")
+            Log.d("Model---", "Interpreter initialized successfully.")
         } catch (e: Exception) {
-            Log.e("Model", "Failed to initialize interpreter: ${e.message}")
+            Log.e("Model--", "Failed to initialize interpreter: ${e.message}")
         }
 
 
@@ -519,17 +519,6 @@ class CameraFragment : Fragment() {
                     val rawImage = result.image
                     val rawBuffer = rawImage.planes[0].buffer
 
-//                    val width = rawImage.width
-//                    val height = rawImage.height
-//                    val bayerPattern = CameraCharacteristics.SENSOR_INFO_COLOR_FILTER_ARRANGEMENT_RGGB
-
-//                    val floatArrayInput = convertRawToFloatArray(rawData, width, height)
-//                    Log.d("FloatArrayLogger--", "Array size: ${floatArrayInput.size}")
-
-                    // Log first few elements (for example: first 10 values or entire array if it's small)
-//                    val logLimit = 10  // Limit to log the first 10 elements
-//                    val logValues = floatArrayInput.take(100).joinToString(", ")
-//                    Log.d("rawByteArray", "First 100 values: [$logValues]")
 
                     // Debug: Log successful conversion
                     Log.d(TAG, "Normalized float array created for RAW image processing")
@@ -547,21 +536,25 @@ class CameraFragment : Fragment() {
                     val (jpegFile, bitmap) = convertRawToJpeg(dngFile)
                     Log.d(TAG, "JPEG image saved: ${jpegFile.absolutePath}")
 
-                    // Extact Single channel array from dng file
+                    // Extact  RGB array from dng file
 
                     // Ensure the Bitmap is not null before running inference
-                    if (bitmap != null) {
-                        runInferenceOnBitmap(bitmap, interpreter)
-                    } else {
-                        Log.e("ImageProcessing", "Failed to decode RAW image to Bitmap.")
-                    }
+//                    if (bitmap != null) {
+//                        runInferenceOnBitmap(bitmap, interpreter)
+//                    } else {
+//                        Log.e("ImageProcessing", "Failed to decode RAW image to Bitmap.")
+//                    }
                     val rawData = convertRawToFloatArrayFast(rawImage)
-                    val logValues1 = rawData.take(100).joinToString(", ")
-                    Log.d("rawFloatArray--", "First 100 values: [$logValues1]")
+                    if (rawData != null) {
+                        runInferenceOnRaw(rawData, interpreter)
+                    }
+                    rawImage.close();
                 } catch (exc: IOException) {
                     Log.e(TAG, "Unable to write DNG image to file", exc)
                     cont.resumeWithException(exc)
                 }
+
+
             }
 
 //            ImageFormat.DEPTH_JPEG -> {
@@ -598,59 +591,98 @@ class CameraFragment : Fragment() {
         }
     }
 
-
-    private fun convertRawToFloatArrayFast(rawImage: Image): FloatArray {
-        val width = rawImage.width
-        val height = rawImage.height
-        val rawBuffer: ByteBuffer = rawImage.planes[0].buffer
-
-        // Ensure the buffer is in the correct byte order (e.g., little-endian) Using this as many camera sensor use little endian
-        rawBuffer.order(ByteOrder.LITTLE_ENDIAN)  // Using this as many camera sensor
-
-        // Create a ShortBuffer view of the ByteBuffer
-        val shortBuffer: ShortBuffer = rawBuffer.asShortBuffer()
-
-        // Create a ShortArray to hold the data
-        val shortArray = ShortArray(shortBuffer.remaining())
-
-        // Copy the data from the ShortBuffer to the ShortArray
-        shortBuffer.get(shortArray)
-        val logValuesSh = shortArray.take(100).joinToString(", ")
-        Log.d("rawShortArray--", "First 100 values: [$logValuesSh]")
-        // Create a FloatArray for the normalized data
-        val floatArray = FloatArray(shortArray.size)
+// Using this function to raw image to float array which is directly comming from raw sensor & will be used for inference when sending raw data to the model
 
 
-        // Normalize the short data to floats
-        for (i in shortArray.indices) {
-            floatArray[i] = shortArray[i].toFloat() / 65535f
+    private fun convertRawToFloatArrayFast(rawImage: Image): FloatArray? {
+        try {
+            if (rawImage == null) {
+                Log.e("convertRawToFloat-", "rawImage is null")
+                return null
+            }
+            val width = rawImage.width
+            val height = rawImage.height
+            val rawBuffer: ByteBuffer = rawImage.planes[0].buffer
+
+            if (rawBuffer == null) {
+                Log.e("convertRawToFloatAr--", "rawBuffer is null")
+                return null
+            }
+
+            // Ensure the buffer is in the correct byte order (e.g., little-endian)
+            rawBuffer.order(ByteOrder.LITTLE_ENDIAN)
+
+            // Log buffer information
+            Log.d("convertRawToFloatArray-", "rawBuffer capacity: ${rawBuffer.capacity()}")
+            Log.d("convertRawToFloatArray-", "rawBuffer limit: ${rawBuffer.limit()}")
+            Log.d("convertRawToFloatArray-", "rawBuffer position: ${rawBuffer.position()}")
+
+            // Create a ShortBuffer view of the ByteBuffer
+            val shortBuffer: ShortBuffer = rawBuffer.asShortBuffer()
+
+            // Create a ShortArray to hold the data
+            val shortArray = ShortArray(shortBuffer.remaining())
+            Log.d("convertRawToFloatArray-", "shortArray size: ${shortArray.size}")
+
+            // Copy the data from the ShortBuffer to the ShortArray
+            shortBuffer.get(shortArray)
+
+            // Log some short values
+            val logValuesSh = shortArray.take(100).joinToString(", ")
+            Log.d("rawShortArray--", "First 100 values: [$logValuesSh]")
+
+            // Create a FloatArray for the normalized data
+            val floatArray = FloatArray(shortArray.size)
+            Log.d("convertRawToFloatArray-", "floatArray size: ${floatArray.size}")
+
+            // Normalize the short data to floats
+            for (i in shortArray.indices) {
+                floatArray[i] = shortArray[i].toFloat() / 65535f
+            }
+
+            // Log some float values
+            val logValues1 = floatArray.take(100).joinToString(", ")
+            Log.d("rawFloatArray--", "First 100 values: [$logValues1]")
+
+            return floatArray
+        } catch (e: Exception) {
+            Log.e("convertRawToFloatArray-", "Exception in convertRawToFloatArrayFast", e)
+            return null
         }
-        val logValues1 = floatArray.take(100).joinToString(", ")
-        Log.d("rawFloatArray--", "First 100 values: [$logValues1]")
-
-
-        return floatArray
     }
-
-//    private fun convertRawToFloatArray(rawImage: Image): FloatArray {
+//    private fun convertRawToFloatArrayFast(rawImage: Image): FloatArray {
 //        val width = rawImage.width
 //        val height = rawImage.height
-//        val rawBuffer = rawImage.planes[0].buffer
+//        val rawBuffer: ByteBuffer = rawImage.planes[0].buffer
 //
-//        // Create a FloatArray to store raw pixel data
-//        val rawData = FloatArray(width * height)
+//        // Ensure the buffer is in the correct byte order (e.g., little-endian) Using this as many camera sensor use little endian
+//        rawBuffer.order(ByteOrder.LITTLE_ENDIAN)  // Using this as many camera sensor
 //
-//        var pixelIndex = 0
-//        while (rawBuffer.hasRemaining()) {
-//            val rawValue = rawBuffer.get().toInt() and 0xFF  // Convert byte to unsigned integer
-//            rawData[pixelIndex] = rawValue.toFloat() / 65535f  // Normalize to [0.0, 1.0] range
-//            pixelIndex++
+//        // Create a ShortBuffer view of the ByteBuffer
+//        val shortBuffer: ShortBuffer = rawBuffer.asShortBuffer()
+//
+//        // Create a ShortArray to hold the data
+//        val shortArray = ShortArray(shortBuffer.remaining())
+//
+//        // Copy the data from the ShortBuffer to the ShortArray
+//        shortBuffer.get(shortArray)
+//        val logValuesSh = shortArray.take(100).joinToString(", ")
+//        Log.d("rawShortArray--", "First 100 values: [$logValuesSh]")
+//        // Create a FloatArray for the normalized data
+//        val floatArray = FloatArray(shortArray.size)
+//
+//
+//        // Normalize the short data to floats
+//        for (i in shortArray.indices) {
+//            floatArray[i] = shortArray[i].toFloat() / 65535f
 //        }
-//        val logValues1 = rawData.take(100).joinToString(", ")
+//        val logValues1 = floatArray.take(100).joinToString(", ")
 //        Log.d("rawFloatArray--", "First 100 values: [$logValues1]")
 //
-//        return rawData
+//
+//        return floatArray
 //    }
+
 
     //created this helper function to convert raw image to jpeg ISP
     private fun convertRawToJpeg(rawFile: File): Pair<File, Bitmap?> {
@@ -690,7 +722,7 @@ class CameraFragment : Fragment() {
         }
         return metadataFile
     }
-    // Function to run inferences and to extract the raw pixel directly from the planes
+    // Function to run inferences on rgb
     fun runInferenceOnBitmap(bitmap: Bitmap, interpreter: Interpreter) {
         try {
             // Convert the Bitmap to a FloatArray for inference
@@ -711,9 +743,68 @@ class CameraFragment : Fragment() {
 
             // Calculate the total number of elements in the output tensor
             val outputSize = outputShape.reduce { acc, dim -> acc * dim }
-
+            Log.d("OutputTensorShape", "Expected output shape: ${outputShape.joinToString(" x ")}")
+            Log.d("OutputTensorSize", "Expected total elements: $outputSize")
             // Create an appropriately sized output array
             val outputArray = Array(1) { ByteArray(outputSize) }
+//            val ubyteArray  =  Array(1) { UByteArray(outputSize) }
+            Log.d("OutputArraySize", "Dimensions: ${outputArray.size} x ${outputArray[0].size}")
+            // Run inference
+            interpreter.run(arrayOf(inputArray), outputArray)
+            Log.d("Inference", "Inference completed successfully.")
+
+            // Process the output(example: find the predicted class)
+//            val predictedClass = outputArray[0].withIndex().maxByOrNull { it.value }?.index
+//            Log.d("ModelPrediction", "Predicted class: $predictedClass")
+            val predictedClass = outputArray[0].withIndex().maxByOrNull { it.value.toInt() and 0xFF }?.index
+            Log.d("ModelPrediction", "Predicted class: $predictedClass")
+
+            if (outputArray.isNotEmpty()) {
+                Log.d("OutputCheck", "Sample Output Values: ${outputArray[0].take(10)}")
+            }
+
+
+            // Making changes for saving image
+            val ubyteArray = outputArray.map { byteArray ->
+                byteArray.map { it.toUByte() }.toUByteArray()
+            }.toTypedArray()
+            val outputArray1D = ubyteArray.flatMap { it.asIterable() }.toUByteArray()
+            Log.d("OutputArray1D", "Flattened output array size: ${outputArray1D.size}")
+
+            // Log a subset of the values to verify contents (first 100 values or less)
+            val logValues = outputArray1D.take(100).joinToString(", ")
+            Log.d("OutputArray1DValues", "First 100 values: [$logValues]")
+//            saveArray.saveUByteArrayAsNumpyFile(ubyteArray, requireContext().filesDir, "OutBuytArray.npy")
+            // Log min and max values
+            val minVal = outputArray1D.minOf { it.toInt() }
+            val maxVal = outputArray1D.maxOf { it.toInt() }
+            Log.d("OutputCheck", "Min value: $minVal, Max value: $maxVal")
+
+
+            // After running inference
+            saveProcessedOutput(outputArray1D, outputShape)
+
+        } catch (e: Exception) {
+            Log.e("ModelError", "Error during inference: ${e.message}")
+        }
+    }
+
+    // Function to run inferences on raw values extracted
+    fun runInferenceOnRaw(inputArray: FloatArray, interpreter: Interpreter) {
+        try {
+
+            // Get the output tensor and its shape
+            val outputTensor = interpreter.getOutputTensor(0)
+            val outputShape = outputTensor.shape()
+            val expectedOutputSize = outputShape.reduce { acc, dim -> acc * dim }
+            Log.d("OutputTensorShape", "Expected output shape: ${outputShape.joinToString(" x ")}")
+            Log.d("OutputTensorSize", "Expected total elements: $expectedOutputSize")
+
+            // Calculate the total number of elements in the output tensor
+//            val outputSize = outputShape.reduce { acc, dim -> acc * dim }
+
+            // Create an appropriately sized output array
+            val outputArray = Array(1) { ByteArray(expectedOutputSize) }
 //            val ubyteArray  =  Array(1) { UByteArray(outputSize) }
             Log.d("OutputArraySize", "Dimensions: ${outputArray.size} x ${outputArray[0].size}")
             // Run inference
