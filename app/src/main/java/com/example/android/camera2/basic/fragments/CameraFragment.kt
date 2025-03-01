@@ -595,6 +595,60 @@ class CameraFragment : Fragment() {
 
 
     private fun convertRawToFloatArrayFast(rawImage: Image): FloatArray? {
+//        try {
+//            if (rawImage == null) {
+//                Log.e("convertRawToFloat-", "rawImage is null")
+//                return null
+//            }
+//            val width = rawImage.width
+//            val height = rawImage.height
+//            val rawBuffer: ByteBuffer = rawImage.planes[0].buffer
+//
+//            if (rawBuffer == null) {
+//                Log.e("convertRawToFloatAr--", "rawBuffer is null")
+//                return null
+//            }
+//
+//            // Ensure the buffer is in the correct byte order (e.g., little-endian)
+//            rawBuffer.order(ByteOrder.LITTLE_ENDIAN)
+//
+//            // Log buffer information
+//            Log.d("convertRawToFloatArray-", "rawBuffer capacity: ${rawBuffer.capacity()}")
+//            Log.d("convertRawToFloatArray-", "rawBuffer limit: ${rawBuffer.limit()}")
+//            Log.d("convertRawToFloatArray-", "rawBuffer position: ${rawBuffer.position()}")
+//
+//            // Create a ShortBuffer view of the ByteBuffer
+//            val shortBuffer: ShortBuffer = rawBuffer.asShortBuffer()
+//
+//            // Create a ShortArray to hold the data
+//            val shortArray = ShortArray(shortBuffer.remaining())
+//            Log.d("convertRawToFloatArray-", "shortArray size: ${shortArray.size}")
+//
+//            // Copy the data from the ShortBuffer to the ShortArray
+//            shortBuffer.get(shortArray)
+//
+//            // Log some short values
+//            val logValuesSh = shortArray.take(100).joinToString(", ")
+//            Log.d("rawShortArray--", "First 100 values: [$logValuesSh]")
+//
+//            // Create a FloatArray for the normalized data
+//            val floatArray = FloatArray(shortArray.size)
+//            Log.d("convertRawToFloatArray-", "floatArray size: ${floatArray.size}")
+//
+//            // Normalize the short data to floats
+//            for (i in shortArray.indices) {
+//                floatArray[i] = shortArray[i].toFloat() / 65535f
+//            }
+//
+//            // Log some float values
+//            val logValues1 = floatArray.take(100).joinToString(", ")
+//            Log.d("rawFloatArray--", "First 100 values: [$logValues1]")
+//
+//            return floatArray
+//        } catch (e: Exception) {
+//            Log.e("convertRawToFloatArray-", "Exception in convertRawToFloatArrayFast", e)
+//            return null
+//        }
         try {
             if (rawImage == null) {
                 Log.e("convertRawToFloat-", "rawImage is null")
@@ -602,8 +656,10 @@ class CameraFragment : Fragment() {
             }
             val width = rawImage.width
             val height = rawImage.height
-            val rawBuffer: ByteBuffer = rawImage.planes[0].buffer
+            val targetWidth = 4000
+            val targetHeight = 3000
 
+            val rawBuffer: ByteBuffer = rawImage.planes[0].buffer
             if (rawBuffer == null) {
                 Log.e("convertRawToFloatAr--", "rawBuffer is null")
                 return null
@@ -614,75 +670,67 @@ class CameraFragment : Fragment() {
 
             // Log buffer information
             Log.d("convertRawToFloatArray-", "rawBuffer capacity: ${rawBuffer.capacity()}")
-            Log.d("convertRawToFloatArray-", "rawBuffer limit: ${rawBuffer.limit()}")
-            Log.d("convertRawToFloatArray-", "rawBuffer position: ${rawBuffer.position()}")
+            Log.d("convertRawToFloatArray-", "Image size: ${width}x${height}")
 
             // Create a ShortBuffer view of the ByteBuffer
             val shortBuffer: ShortBuffer = rawBuffer.asShortBuffer()
 
-            // Create a ShortArray to hold the data
+            // Read pixel values
             val shortArray = ShortArray(shortBuffer.remaining())
-            Log.d("convertRawToFloatArray-", "shortArray size: ${shortArray.size}")
-
-            // Copy the data from the ShortBuffer to the ShortArray
             shortBuffer.get(shortArray)
 
-            // Log some short values
-            val logValuesSh = shortArray.take(100).joinToString(", ")
-            Log.d("rawShortArray--", "First 100 values: [$logValuesSh]")
-
-            // Create a FloatArray for the normalized data
+            // Convert to FloatArray & Normalize (0-65535 → 0.0-1.0)
             val floatArray = FloatArray(shortArray.size)
-            Log.d("convertRawToFloatArray-", "floatArray size: ${floatArray.size}")
-
-            // Normalize the short data to floats
             for (i in shortArray.indices) {
                 floatArray[i] = shortArray[i].toFloat() / 65535f
             }
 
-            // Log some float values
-            val logValues1 = floatArray.take(100).joinToString(", ")
-            Log.d("rawFloatArray--", "First 100 values: [$logValues1]")
-
-            return floatArray
+            // Resize only if the image is not already 3000x4000
+            return if (width != targetWidth || height != targetHeight) {
+                Log.d("ImageResize", "Resizing from ${width}x${height} to ${targetWidth}x${targetHeight}")
+                resizeBilinear(floatArray, width, height, targetWidth, targetHeight)
+            } else {
+                Log.d("ImageResize", "No resizing needed.")
+                floatArray
+            }
         } catch (e: Exception) {
             Log.e("convertRawToFloatArray-", "Exception in convertRawToFloatArrayFast", e)
             return null
         }
     }
-//    private fun convertRawToFloatArrayFast(rawImage: Image): FloatArray {
-//        val width = rawImage.width
-//        val height = rawImage.height
-//        val rawBuffer: ByteBuffer = rawImage.planes[0].buffer
-//
-//        // Ensure the buffer is in the correct byte order (e.g., little-endian) Using this as many camera sensor use little endian
-//        rawBuffer.order(ByteOrder.LITTLE_ENDIAN)  // Using this as many camera sensor
-//
-//        // Create a ShortBuffer view of the ByteBuffer
-//        val shortBuffer: ShortBuffer = rawBuffer.asShortBuffer()
-//
-//        // Create a ShortArray to hold the data
-//        val shortArray = ShortArray(shortBuffer.remaining())
-//
-//        // Copy the data from the ShortBuffer to the ShortArray
-//        shortBuffer.get(shortArray)
-//        val logValuesSh = shortArray.take(100).joinToString(", ")
-//        Log.d("rawShortArray--", "First 100 values: [$logValuesSh]")
-//        // Create a FloatArray for the normalized data
-//        val floatArray = FloatArray(shortArray.size)
-//
-//
-//        // Normalize the short data to floats
-//        for (i in shortArray.indices) {
-//            floatArray[i] = shortArray[i].toFloat() / 65535f
-//        }
-//        val logValues1 = floatArray.take(100).joinToString(", ")
-//        Log.d("rawFloatArray--", "First 100 values: [$logValues1]")
-//
-//
-//        return floatArray
-//    }
 
+    private fun resizeBilinear(input: FloatArray, oldWidth: Int, oldHeight: Int, newWidth: Int, newHeight: Int): FloatArray {
+        val output = FloatArray(newWidth * newHeight)
+
+        val xRatio = oldWidth.toFloat() / newWidth
+        val yRatio = oldHeight.toFloat() / newHeight
+
+        for (newY in 0 until newHeight) {
+            for (newX in 0 until newWidth) {
+                val srcX = newX * xRatio
+                val srcY = newY * yRatio
+
+                val x1 = srcX.toInt()
+                val y1 = srcY.toInt()
+                val x2 = (x1 + 1).coerceAtMost(oldWidth - 1)
+                val y2 = (y1 + 1).coerceAtMost(oldHeight - 1)
+
+                val q11 = input[y1 * oldWidth + x1]
+                val q12 = input[y2 * oldWidth + x1]
+                val q21 = input[y1 * oldWidth + x2]
+                val q22 = input[y2 * oldWidth + x2]
+
+                val xDiff = srcX - x1
+                val yDiff = srcY - y1
+
+                val top = q11 * (1 - xDiff) + q21 * xDiff
+                val bottom = q12 * (1 - xDiff) + q22 * xDiff
+
+                output[newY * newWidth + newX] = top * (1 - yDiff) + bottom * yDiff
+            }
+        }
+        return output
+    }
 
     //created this helper function to convert raw image to jpeg ISP
     private fun convertRawToJpeg(rawFile: File): Pair<File, Bitmap?> {
