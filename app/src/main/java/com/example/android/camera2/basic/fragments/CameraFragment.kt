@@ -704,9 +704,9 @@ class CameraFragment : Fragment() {
     }
 
     //created this helper function to convert raw image to jpeg ISP
-    private fun convertRawToJpeg(rawFile: File): Pair<File, Bitmap?> {
+    private fun convertRawToJpeg(dngFile: File): Pair<File, Bitmap?> {
         // Decode the RAW file
-        val inputStream = FileInputStream(rawFile)
+        val inputStream = FileInputStream(dngFile)
         val options = BitmapFactory.Options().apply {
             inPreferredConfig = Bitmap.Config.ARGB_8888
         }
@@ -718,6 +718,7 @@ class CameraFragment : Fragment() {
         inputStream.close()
 
         // Create a new JPEG file
+        val metadataFile = File(dngFile.parent, "${dngFile.nameWithoutExtension}_metadata.json")
         val jpegFile = createFile(requireContext(), "jpg")
         FileOutputStream(jpegFile).use { outputStream ->
             bitmap?.compress(Bitmap.CompressFormat.JPEG, 100, outputStream)
