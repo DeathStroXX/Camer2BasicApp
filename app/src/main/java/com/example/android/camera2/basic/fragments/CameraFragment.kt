@@ -718,9 +718,11 @@ class CameraFragment : Fragment() {
         inputStream.close()
 
         // Create a new JPEG file
-        val metadataFile = File(dngFile.parent, "${dngFile.nameWithoutExtension}_metadata.json")
+        val fileName = "${dngFile.nameWithoutExtension}.jpg"
+        val file = File(requireContext().filesDir, fileName)
+
         val jpegFile = createFile(requireContext(), "jpg")
-        FileOutputStream(jpegFile).use { outputStream ->
+        FileOutputStream(file).use { outputStream ->
             bitmap?.compress(Bitmap.CompressFormat.JPEG, 100, outputStream)
         }
 
