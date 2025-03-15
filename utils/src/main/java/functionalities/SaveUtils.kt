@@ -1,4 +1,4 @@
-package save
+package functionalities
 
 import android.content.ContentValues
 import android.content.Context
@@ -21,7 +21,10 @@ object SaveUtils {
         val contentValues = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, fileName1)
             put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
-            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS  + "/Camera2Basic/Images")
+            put(
+                MediaStore.MediaColumns.RELATIVE_PATH,
+                Environment.DIRECTORY_DOWNLOADS + "/Camera2Basic/Images"
+            )
         }
 
         val resolver = context.contentResolver
@@ -34,6 +37,7 @@ object SaveUtils {
             Log.d("SaveJPEG", "JPEG saved to: $uri")
         } ?: Log.e("SaveJPEG", "Failed to save JPEG")
     }
+
     fun saveBitmapAsJpeg(bitmap: Bitmap, dngFile: File): File? {
         try {
             // Define JPEG file name (Same as DNG, but with .jpg extension)
@@ -58,15 +62,23 @@ object SaveUtils {
     }
 
 
-
     //    // Save DNG to Gallery
-    fun saveDngAndMetaToGallery(context: Context, dngCreator: DngCreator, dngFile: File,image: Image, result: CaptureResult) {
+    fun saveDngAndMetaToGallery(
+        context: Context,
+        dngCreator: DngCreator,
+        dngFile: File,
+        image: Image,
+        result: CaptureResult
+    ) {
 
-        val fileName = "${dngFile.nameWithoutExtension}.dng"
+        val fileName = "${dngFile.nameWithoutExtension}"
         val contentValues = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
             put(MediaStore.MediaColumns.MIME_TYPE, "image/x-adobe-dng")
-            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS  + "/Camera2Basic/Images")
+            put(
+                MediaStore.MediaColumns.RELATIVE_PATH,
+                Environment.DIRECTORY_DOWNLOADS + "/Camera2Basic/Images"
+            )
         }
         val resolver = context.contentResolver
         val uri = resolver.insert(MediaStore.Files.getContentUri("external"), contentValues)
@@ -92,7 +104,10 @@ object SaveUtils {
         val metaContentValues = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, metaFileName)
             put(MediaStore.MediaColumns.MIME_TYPE, "application/json")
-            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Camera2Basic/Images")
+            put(
+                MediaStore.MediaColumns.RELATIVE_PATH,
+                Environment.DIRECTORY_DOWNLOADS + "/Camera2Basic/Images"
+            )
         }
 
         val metaUri = resolver.insert(MediaStore.Files.getContentUri("external"), metaContentValues)
@@ -105,5 +120,22 @@ object SaveUtils {
         } ?: Log.e("SaveMetadata", "Failed to save metadata")
     }
 
+    //    Saves the given Bitmap as a JPEG file.*/
+    fun saveBitmapToFile(bitmap: Bitmap, fileParentName: String, filePath: String) {
+        try {
+            val fileNameProcessed = "${fileParentName}_Processed.jpeg"
+            val file = File(filePath, fileNameProcessed)
 
+            FileOutputStream(file).use { fos ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 100, fos)
+            }
+
+            Log.d("ModelProcessOutput", "Processed image saved: ${file.absolutePath}")
+
+        } catch (e: Exception) {
+            Log.e("ModelProcessOutput", "Failed to save processed image: ${e.message}", e)
+        }
+
+
+    }
 }

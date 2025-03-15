@@ -1,5 +1,5 @@
 
-package Modifications
+package functionalities
 
 //package your.package.name.util
 
