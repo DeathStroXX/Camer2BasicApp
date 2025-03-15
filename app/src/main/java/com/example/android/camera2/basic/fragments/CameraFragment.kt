@@ -537,15 +537,15 @@ class CameraFragment : Fragment() {
                     // Extact  RGB array from dng file
 
                     // Ensure the Bitmap is not null before running inference
-                    if (bitmap != null) {
-                        RGB2RGBmodel.runInferenceOnBitmap(bitmap, interpreter, fileName, filePath)
-                    } else {
-                        Log.e("ImageProcessing", "Failed to decode RAW image to Bitmap.")
-                    }
-//                    val rawData = convertRawToFloatArrayFast(rawImage)
-//                    if (rawData != null) {
-//                        runInferenceOnRaw(rawData, interpreter, result)
+//                    if (bitmap != null) {
+//                        RGB2RGBmodel.runInferenceOnBitmap(bitmap, interpreter, fileName, filePath)
+//                    } else {
+//                        Log.e("ImageProcessing", "Failed to decode RAW image to Bitmap.")
 //                    }
+                    val rawData = convertRawToFloatArrayFast(rawImage)
+                    if (rawData != null) {
+                        runInferenceOnRaw(rawData, interpreter, dngCreator, requireContext(), filePath,fileName)
+                    }
                     rawImage.close();
                 } catch (exc: IOException) {
                     Log.e(TAG, "Unable to write DNG image to file", exc)
@@ -588,9 +588,6 @@ class CameraFragment : Fragment() {
             }
         }
     }
-
-
-
     private fun loadDngAsBitmap(dngFile: File): Bitmap? {
         try {
             val inputStream = FileInputStream(dngFile)
@@ -604,8 +601,6 @@ class CameraFragment : Fragment() {
         }
     }
 
-
-// Using this function to raw image to float array which is directly comming from raw sensor & will be used for inference when sending raw data to the model
 
 
     private fun convertRawToFloatArrayFast(rawImage: Image): FloatArray? {
@@ -689,7 +684,7 @@ class CameraFragment : Fragment() {
     }
 
 
-    fun runInferenceOnRaw(inputArray: FloatArray, interpreter: Interpreter, result: CombinedCaptureResult) {
+    fun runInferenceOnRaw(inputArray: FloatArray, interpreter: Interpreter, dngCreator: DngCreator,context: Context, filePath: String, fileName: String) {
         try {
 
             //Get input tensor info
@@ -735,7 +730,8 @@ class CameraFragment : Fragment() {
             Log.d("OutputCheck", "Min value: $minVal, Max value: $maxVal")
 
             // Save the processed output as a DNG file
-            saveRawProcessedOutput(outputArray1D, outputShape, result)
+//            val dngCreator = DngCreator(characteristics, result.metadata)
+            saveRawProcessedOutput(outputArray1D, outputShape, dngCreator, requireContext(), filePath,fileName)
 
         } catch (e: Exception) {
             Log.e("ModelError", "Error during inference: ${e.message}")
@@ -749,7 +745,10 @@ class CameraFragment : Fragment() {
         floatArray: FloatArray,  // Model output (normalized 0.0 - 1.0)
         dimensions: IntArray,     // Expected [1, C, H, W] (C=1 or 4)
 //
-        result: CombinedCaptureResult
+        dngCreator: DngCreator,
+        context: Context,
+        filePathParent: String,
+        fileNameParent: String
     ) {
         try {
             val channels = dimensions[1]  // Number of channels (1 for RAW, 4 for RGBA)
@@ -779,7 +778,7 @@ class CameraFragment : Fragment() {
             // Save using DngCreatorval resolver = context.contentResolver
             val resolver = context?.contentResolver
             val sdf = SimpleDateFormat("yyyy_MM_dd_HH_mm_ss_SSS", Locale.US)
-            val fileName = "IMG_Raw_Processed_${sdf.format(Date())}.dng"
+            val fileName = "${fileNameParent}_Processed.jpeg.dng"
 
             if (resolver != null) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -793,7 +792,7 @@ class CameraFragment : Fragment() {
                     val uri = resolver.insert(MediaStore.Files.getContentUri("external"), contentValues)
                     uri?.let {
                         resolver.openOutputStream(it)?.use { outputStream ->
-                            val dngCreator = DngCreator(characteristics, result.metadata)
+//                            val dngCreator = DngCreator(characteristics, result.metadata)
                             dngCreator.writeImage(outputStream, image)
                             Log.d("DNG-Save", "DNG file saved at: $uri")
                         }
@@ -801,13 +800,12 @@ class CameraFragment : Fragment() {
 
                 } else {
                     // ✅ Android 9 and Below (API 28-21): Use File API
-                    val dngFile = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-                        "Camera2Basic/Images/$fileName")
+                    val dngFile = File(filePathParent, fileName)
 
                     dngFile.parentFile?.mkdirs() // Ensure the directory exists
 
                     FileOutputStream(dngFile).use { outputStream ->
-                        val dngCreator = DngCreator(characteristics, result.metadata)
+//                        val dngCreator = DngCreator(characteristics, result.metadata)
                         dngCreator.writeImage(outputStream, image)
                     }
 
