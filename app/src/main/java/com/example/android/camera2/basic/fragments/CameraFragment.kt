@@ -58,6 +58,7 @@ import androidx.navigation.Navigation
 import androidx.navigation.fragment.navArgs
 //import androidx.paging.map
 import Modifications.ModelUtils
+import android.content.ContentValues
 import com.example.android.camera.utils.computeExifOrientation
 import com.example.android.camera.utils.getPreviewOutputSize
 import com.example.android.camera.utils.OrientationLiveData
@@ -88,6 +89,7 @@ import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 import kotlin.ranges.coerceIn
 import android.os.Environment
+import android.provider.MediaStore
 import save.SaveUtils
 
 
@@ -914,6 +916,7 @@ class CameraFragment : Fragment() {
             Log.e("ModelProcessOutput ----", "Failed to save processed image: ${e.message}", e)
         }
     }
+
     private fun saveRawProcessedOutput(
 
 
@@ -937,7 +940,7 @@ class CameraFragment : Fragment() {
             }
 
             // Create ImageReader for RAW storage
-            val format = if (channels == 1) android.graphics.ImageFormat.RAW_SENSOR else android.graphics.ImageFormat.FLEX_RGBA_8888
+            val format = android.graphics.ImageFormat.RAW_SENSOR
             val imageReader = ImageReader.newInstance(width, height, format, 1)
 
             // Acquire an image to store the processed data
@@ -947,24 +950,122 @@ class CameraFragment : Fragment() {
             // Create a DNG file in the app's private storage
 //            val dngFile = File(File("/data/data/com.yourapp/files/"), "processed_output.dng")
 
-            // Save using DngCreator
+            // Save using DngCreatorval resolver = context.contentResolver
+            val resolver = context?.contentResolver
             val sdf = SimpleDateFormat("yyyy_MM_dd_HH_mm_ss_SSS", Locale.US)
-            val fileName = "IMG_Raw_Processed${sdf.format(Date())}.dng"
-            val dngFile = File(requireContext().filesDir, fileName)
+            val fileName = "IMG_Raw_Processed_${sdf.format(Date())}.dng"
 
-//            val dngFile = createFile(requireContext(), "dng")
-            val dngCreator = DngCreator(characteristics, result.metadata)
-            FileOutputStream(dngFile).use { dngCreator.writeImage(it, image) }
+            if (resolver != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    // ✅ Android 10+ (API 29+): Use MediaStore API
+                    val contentValues = ContentValues().apply {
+                        put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                        put(MediaStore.MediaColumns.MIME_TYPE, "image/x-adobe-dng")
+                        put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Camera2Basic/Images/")
+                    }
 
-            Log.d("DNG-Save", "DNG file saved at: ${dngFile.absolutePath}")
+                    val uri = resolver.insert(MediaStore.Files.getContentUri("external"), contentValues)
+                    uri?.let {
+                        resolver.openOutputStream(it)?.use { outputStream ->
+                            val dngCreator = DngCreator(characteristics, result.metadata)
+                            dngCreator.writeImage(outputStream, image)
+                            Log.d("DNG-Save", "DNG file saved at: $uri")
+                        }
+                    } ?: Log.e("DNG-Save", "Failed to create DNG file in Downloads folder")
+
+                } else {
+                    // ✅ Android 9 and Below (API 28-21): Use File API
+                    val dngFile = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                        "Camera2Basic/Images/$fileName")
+
+                    dngFile.parentFile?.mkdirs() // Ensure the directory exists
+
+                    FileOutputStream(dngFile).use { outputStream ->
+                        val dngCreator = DngCreator(characteristics, result.metadata)
+                        dngCreator.writeImage(outputStream, image)
+                    }
+
+                    Log.d("DNG-Save", "DNG file saved at: ${dngFile.absolutePath}")
+                }
+
+                // Release resources
+
+            }
+
+
+//            val sdf = SimpleDateFormat("yyyy_MM_dd_HH_mm_ss_SSS", Locale.US)
+//            val fileName = "IMG_Raw_Processed${sdf.format(Date())}"
+//            val dngFile = File(Environment.getExternalStoragePublicDirectory(
+//                Environment.DIRECTORY_DOWNLOADS).absolutePath + "/Camera2Basic/Images/${fileName}.dng")
+//
+////            val dngFile = createFile(requireContext(), "dng")
+//            val dngCreator = DngCreator(characteristics, result.metadata)
+//            FileOutputStream(dngFile).use { dngCreator.writeImage(it, image) }
+//
+//            Log.d("DNG-Save", "DNG file saved at: ${dngFile.absolutePath}")
 
             // Release resources
             image.close()
             imageReader.close()
+
         } catch (e: Exception) {
             Log.e("DNG-Save", "Error saving DNG file: ${e.message}")
         }
+
     }
+
+
+//    private fun saveRawProcessedOutput(
+//
+//
+//        floatArray: FloatArray,  // Model output (normalized 0.0 - 1.0)
+//        dimensions: IntArray,     // Expected [1, C, H, W] (C=1 or 4)
+////
+//        result: CombinedCaptureResult
+//    ) {
+//        try {
+//            val channels = dimensions[1]  // Number of channels (1 for RAW, 4 for RGBA)
+//            val height = dimensions[2]    // Image height
+//            val width = dimensions[3]     // Image width
+//
+//            Log.d("DNG-Save", "Saving DNG with size: $width x $height, Channels: $channels")
+//
+//            // Convert FloatArray to 16-bit RAW ByteArray
+//            val byteBuffer = ByteBuffer.allocate(floatArray.size * 2).order(ByteOrder.LITTLE_ENDIAN)
+//            for (value in floatArray) {
+//                val scaledValue = (value * 65535).toInt().coerceIn(0, 65535)  // Normalize 0.0 - 1.0 to 0 - 65535
+//                byteBuffer.putShort(scaledValue.toShort())
+//            }
+//
+//            // Create ImageReader for RAW storage
+//            val format = if (channels == 1) android.graphics.ImageFormat.RAW_SENSOR else android.graphics.ImageFormat.FLEX_RGBA_8888
+//            val imageReader = ImageReader.newInstance(width, height, format, 1)
+//
+//            // Acquire an image to store the processed data
+//            val image = imageReader.acquireNextImage()
+//            image?.planes?.get(0)?.buffer?.put(byteBuffer.array())
+//
+//            // Create a DNG file in the app's private storage
+////            val dngFile = File(File("/data/data/com.yourapp/files/"), "processed_output.dng")
+//
+//            // Save using DngCreator
+//            val sdf = SimpleDateFormat("yyyy_MM_dd_HH_mm_ss_SSS", Locale.US)
+//            val fileName = "IMG_Raw_Processed${sdf.format(Date())}.dng"
+//            val dngFile = File(requireContext().filesDir, fileName)
+//
+////            val dngFile = createFile(requireContext(), "dng")
+//            val dngCreator = DngCreator(characteristics, result.metadata)
+//            FileOutputStream(dngFile).use { dngCreator.writeImage(it, image) }
+//
+//            Log.d("DNG-Save", "DNG file saved at: ${dngFile.absolutePath}")
+//
+//            // Release resources
+//            image.close()
+//            imageReader.close()
+//        } catch (e: Exception) {
+//            Log.e("DNG-Save", "Error saving DNG file: ${e.message}")
+//        }
+//    }
 
     private fun convertRawToFloatArray(
         rawData: ByteArray,  // Raw image data from the sensor
