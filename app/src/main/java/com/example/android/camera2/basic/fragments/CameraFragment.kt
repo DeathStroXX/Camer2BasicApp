@@ -15,10 +15,11 @@
  * limitations under the License.
  */
 
+
 package com.example.android.camera2.basic.fragments
 
+
 import android.annotation.SuppressLint
-import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -39,7 +40,6 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
-import android.provider.MediaStore
 import android.util.Log
 
 import android.view.LayoutInflater
@@ -57,8 +57,7 @@ import androidx.navigation.NavController
 import androidx.navigation.Navigation
 import androidx.navigation.fragment.navArgs
 //import androidx.paging.map
-import com.example.android.camera.utils.ModelUtils
-import com.example.android.camera.utils.SavingPixelArray
+import Modifications.ModelUtils
 import com.example.android.camera.utils.computeExifOrientation
 import com.example.android.camera.utils.getPreviewOutputSize
 import com.example.android.camera.utils.OrientationLiveData
@@ -68,13 +67,11 @@ import com.example.android.camera2.basic.databinding.FragmentCameraBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
-import org.json.JSONObject
 import org.tensorflow.lite.Interpreter
 import java.io.Closeable
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
-import java.io.FileWriter
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -90,8 +87,9 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 import kotlin.ranges.coerceIn
-import kotlin.text.toByte
-import kotlin.text.toUByte
+import android.os.Environment
+import save.SaveUtils
+
 
 class CameraFragment : Fragment() {
 
@@ -514,6 +512,7 @@ class CameraFragment : Fragment() {
                 // Handle RAW_SENSOR image format
 //
                 val dngFile = createFile(requireContext(), "dng")
+                val fileName = dngFile.nameWithoutExtension
                 try {
 
                     val rawImage = result.image
@@ -521,30 +520,43 @@ class CameraFragment : Fragment() {
 
 
                     val dngCreator = DngCreator(characteristics, result.metadata)
+                    SaveUtils.saveDngAndMetaToGallery(requireContext(),dngCreator, dngFile,rawImage, result.metadata)
 
-                    FileOutputStream(dngFile).use { dngCreator.writeImage(it, result.image) }
-                    cont.resume(dngFile)
+
+
+//                    SaveUtils.saveMetadataToGallery(requireContext(),result.metadata, dngFile)
+
+//                    FileOutputStream(dngFile).use { dngCreator.writeImage(it, result.image) }
+//                    cont.resume(dngFile)
 
                     // Save metadata as JSON
-                    val metadataFile = saveMetadata(result.metadata, dngFile)
-                    Log.d(TAG, "Metadata saved: ${metadataFile.absolutePath}")
+//                    val metadataFile = SaveUtils.saveMetadataToGallery(requireContext(),result.metadata, dngFile)
+//                    Log.d(TAG, "Metadata saved: ${metadataFile.absolutePath}")
+
 
                     // Convert RAW to JPEG and save performing minor image processing
-                    val (jpegFile, bitmap) = convertRawToJpeg(dngFile)
-                    Log.d(TAG, "JPEG image saved: ${jpegFile.absolutePath}")
+//                    val bitmap = convertRawImageToBitmap(rawImage)
+//                    val dngFile = File("/storage/emulated/0/Pictures/Camera2Basic/RAW_20250313_001.dng")
+
+
+//                    val bitmap = loadDngAndSaveJpeg(rawImage)
+                    val dngFile = File(Environment.getExternalStoragePublicDirectory(
+                        Environment.DIRECTORY_DOWNLOADS).absolutePath + "/Camera2Basic/Images/${dngFile.nameWithoutExtension}.dng")
+                    val bitmap = loadDngAsBitmap(dngFile)
+                    SaveUtils.saveBitmapAsJpeg(bitmap!!, dngFile)
 
                     // Extact  RGB array from dng file
 
                     // Ensure the Bitmap is not null before running inference
-//                    if (bitmap != null) {
-//                        runInferenceOnBitmap(bitmap, interpreter)
-//                    } else {
-//                        Log.e("ImageProcessing", "Failed to decode RAW image to Bitmap.")
-//                    }
-                    val rawData = convertRawToFloatArrayFast(rawImage)
-                    if (rawData != null) {
-                        runInferenceOnRaw(rawData, interpreter, result)
+                    if (bitmap != null) {
+                        runInferenceOnBitmap(bitmap, interpreter)
+                    } else {
+                        Log.e("ImageProcessing", "Failed to decode RAW image to Bitmap.")
                     }
+//                    val rawData = convertRawToFloatArrayFast(rawImage)
+//                    if (rawData != null) {
+//                        runInferenceOnRaw(rawData, interpreter, result)
+//                    }
                     rawImage.close();
                 } catch (exc: IOException) {
                     Log.e(TAG, "Unable to write DNG image to file", exc)
@@ -587,6 +599,22 @@ class CameraFragment : Fragment() {
             }
         }
     }
+
+
+
+    private fun loadDngAsBitmap(dngFile: File): Bitmap? {
+        try {
+            val inputStream = FileInputStream(dngFile)
+            val options = BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.ARGB_8888 }
+            val bitmap = BitmapFactory.decodeStream(inputStream, null, options)
+            inputStream.close()
+            return bitmap
+        } catch (e: Exception) {
+            Log.e("LoadDNG", "Error loading DNG file", e)
+            return null
+        }
+    }
+
 
 // Using this function to raw image to float array which is directly comming from raw sensor & will be used for inference when sending raw data to the model
 
@@ -645,7 +673,8 @@ class CameraFragment : Fragment() {
             return if (width != targetWidth || height != targetHeight) {
                 Log.d("ImageResize", "Resizing from ${width}x${height} to ${targetWidth}x${targetHeight}")
 //                resizeBilinear(floatArray, width, height, targetWidth, targetHeight)
-                val resizedArray = resizeBilinear(floatArray, width, height, targetWidth, targetHeight)
+//                val resizedArray = resizeBilinear(floatArray, width, height, targetWidth, targetHeight)
+                val resizedArray = floatArray
 
                 // Log values after resizing
                 val resizedLogValues = resizedArray.take(20).joinToString(", ")
@@ -670,82 +699,8 @@ class CameraFragment : Fragment() {
 
     }
 
-    private fun resizeBilinear(input: FloatArray, oldWidth: Int, oldHeight: Int, newWidth: Int, newHeight: Int): FloatArray {
-        val output = FloatArray(newWidth * newHeight)
-
-        val xRatio = oldWidth.toFloat() / newWidth
-        val yRatio = oldHeight.toFloat() / newHeight
-
-        for (newY in 0 until newHeight) {
-            for (newX in 0 until newWidth) {
-                val srcX = newX * xRatio
-                val srcY = newY * yRatio
-
-                val x1 = srcX.toInt()
-                val y1 = srcY.toInt()
-                val x2 = (x1 + 1).coerceAtMost(oldWidth - 1)
-                val y2 = (y1 + 1).coerceAtMost(oldHeight - 1)
-
-                val q11 = input[y1 * oldWidth + x1]
-                val q12 = input[y2 * oldWidth + x1]
-                val q21 = input[y1 * oldWidth + x2]
-                val q22 = input[y2 * oldWidth + x2]
-
-                val xDiff = srcX - x1
-                val yDiff = srcY - y1
-
-                val top = q11 * (1 - xDiff) + q21 * xDiff
-                val bottom = q12 * (1 - xDiff) + q22 * xDiff
-
-                output[newY * newWidth + newX] = top * (1 - yDiff) + bottom * yDiff
-            }
-        }
-        return output
-    }
-
-    //created this helper function to convert raw image to jpeg ISP
-    private fun convertRawToJpeg(dngFile: File): Pair<File, Bitmap?> {
-        // Decode the RAW file
-        val inputStream = FileInputStream(dngFile)
-        val options = BitmapFactory.Options().apply {
-            inPreferredConfig = Bitmap.Config.ARGB_8888
-        }
-        val bitmap1 = BitmapFactory.decodeStream(inputStream, null, options)
-        val bitmap = bitmap1?.let { Bitmap.createScaledBitmap(it, 2304, 1728, true) }
-        if (bitmap != null) {
-            Log.d("ImageResolution", "Resolution after decoding: ${bitmap.width} x ${bitmap.height}")
-        }
-        inputStream.close()
-
-        // Create a new JPEG file
-        val fileName = "${dngFile.nameWithoutExtension}.jpg"
-        val file = File(requireContext().filesDir, fileName)
-
-        val jpegFile = createFile(requireContext(), "jpg")
-        FileOutputStream(file).use { outputStream ->
-            bitmap?.compress(Bitmap.CompressFormat.JPEG, 100, outputStream)
-        }
-
-        return Pair(jpegFile, bitmap)
-    }
-
-
-    //Helper function created to capture all the metadata information
-    private fun saveMetadata(metadata: CaptureResult, dngFile: File): File {
-        val metadataMap = mutableMapOf<String, Any?>()
-
-        for (key in metadata.keys) {
-            metadataMap[key.name] = metadata.get(key)
-        }
-
-        val metadataFile = File(dngFile.parent, "${dngFile.nameWithoutExtension}_metadata.json")
-        FileWriter(metadataFile).use {
-            it.write(JSONObject(metadataMap).toString(4))
-        }
-        return metadataFile
-    }
     // Function to run inferences on rgb
-    fun runInferenceOnBitmap(bitmap: Bitmap, interpreter: Interpreter) {
+   private  fun runInferenceOnBitmap(bitmap: Bitmap, interpreter: Interpreter) {
         try {
             // Convert the Bitmap to a FloatArray for inference
             val inputArray = preprocessBitmapToModelInput(bitmap)
@@ -804,72 +759,13 @@ class CameraFragment : Fragment() {
 
 
             // After running inference
-            saveProcessedOutput(outputArray1D, outputShape)
+            saveProcessedRGB2RGBOutput(outputArray1D, outputShape)
 
         } catch (e: Exception) {
             Log.e("ModelError", "Error during inference: ${e.message}")
         }
     }
 
-    // Function to run inferences on raw values extracted
-//    fun runInferenceOnRaw(inputArray: FloatArray, interpreter: Interpreter, result: CombinedCaptureResult) {
-//        try {
-//
-//            // Get the output tensor and its shape
-//            val outputTensor = interpreter.getOutputTensor(0)
-//            val outputShape = outputTensor.shape()
-//            val expectedOutputSize = outputShape.reduce { acc, dim -> acc * dim }
-//            Log.d("OutputTensorShape", "Expected output shape: ${outputShape.joinToString(" x ")}")
-//            Log.d("OutputTensorSize", "Expected total elements: $expectedOutputSize")
-//
-//            // Calculate the total number of elements in the output tensor
-////            val outputSize = outputShape.reduce { acc, dim -> acc * dim }
-//
-//            // Create an appropriately sized output array
-//            val outputArray = Array(1) { ByteArray(expectedOutputSize) }
-////            val ubyteArray  =  Array(1) { UByteArray(outputSize) }
-//            Log.d("OutputArraySize", "Dimensions: ${outputArray.size} x ${outputArray[0].size}")
-//            // Run inference
-//            interpreter.run(arrayOf(inputArray), outputArray)
-//            Log.d("Inference", "Inference completed successfully.")
-//
-//            // Process the output(example: find the predicted class)
-////            val predictedClass = outputArray[0].withIndex().maxByOrNull { it.value }?.index
-////            Log.d("ModelPrediction", "Predicted class: $predictedClass")
-//            val predictedClass = outputArray[0].withIndex().maxByOrNull { it.value.toInt() and 0xFF }?.index
-//            Log.d("ModelPrediction", "Predicted class: $predictedClass")
-//
-//            if (outputArray.isNotEmpty()) {
-//                Log.d("OutputCheck", "Sample Output Values: ${outputArray[0].take(10)}")
-//            }
-//
-//
-//            // Making changes for saving image
-//            val ubyteArray = outputArray.map { byteArray ->
-//                byteArray.map { it.toUByte() }.toUByteArray()
-//            }.toTypedArray()
-//            val outputArray1D = ubyteArray.flatMap { it.asIterable() }.toUByteArray()
-//            Log.d("OutputArray1D", "Flattened output array size: ${outputArray1D.size}")
-//
-//            // Log a subset of the values to verify contents (first 100 values or less)
-//            val logValues = outputArray1D.take(100).joinToString(", ")
-//            Log.d("OutputArray1DValues", "First 100 values: [$logValues]")
-////            saveArray.saveUByteArrayAsNumpyFile(ubyteArray, requireContext().filesDir, "OutBuytArray.npy")
-//            // Log min and max values
-//            val minVal = outputArray1D.minOf { it.toInt() }
-//            val maxVal = outputArray1D.maxOf { it.toInt() }
-//            Log.d("OutputCheck", "Min value: $minVal, Max value: $maxVal")
-//
-//
-//            // After running inference
-//            saveRawProcessedOutput(outputArray1D, outputShape, result)
-////            saveProcessedOutput(outputShapeutArray1D, outputShape)
-//
-//
-//        } catch (e: Exception) {
-//            Log.e("ModelError", "Error during inference: ${e.message}")
-//        }
-//    }
 
     fun runInferenceOnRaw(inputArray: FloatArray, interpreter: Interpreter, result: CombinedCaptureResult) {
         try {
@@ -970,7 +866,7 @@ class CameraFragment : Fragment() {
         return floatArray
     }
 
-    private fun saveProcessedOutput(outputArrayValue: UByteArray, outputShape: IntArray) {
+    private fun saveProcessedRGB2RGBOutput(outputArrayValue: UByteArray, outputShape: IntArray) {
         // Assuming outputShape is [Batch, Channels, Height, Width]
         val batchSize = outputShape[0] // Should be 1
         val channels = outputShape[1] // RGB = 3

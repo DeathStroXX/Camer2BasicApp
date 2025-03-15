@@ -1,5 +1,5 @@
 
-package com.example.android.camera.utils
+package Modifications
 
 //package your.package.name.util
 
@@ -7,7 +7,6 @@ import android.content.Context
 import org.tensorflow.lite.Interpreter
 import java.io.FileInputStream
 import java.nio.channels.FileChannel
-import java.nio.MappedByteBuffer
 import java.nio.ByteBuffer
 
 object ModelUtils {
