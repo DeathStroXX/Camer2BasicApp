@@ -9,13 +9,15 @@ import android.provider.MediaStore
 import android.util.Log
 import android.media.Image
 import android.hardware.camera2.DngCreator
+import android.util.Size
 import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
+import java.nio.ByteBuffer
 
 object SaveUtils {
 
-    // Save JPEG to Gallery
+    // Save JPEG to Gallery which is converted in app from raw to jpeg
     fun saveJpegToGallery(context: Context, bitmap: Bitmap?, fileName: String) {
         val fileName1 = "${fileName}.jpeg"
         val contentValues = ContentValues().apply {
@@ -37,7 +39,7 @@ object SaveUtils {
             Log.d("SaveJPEG", "JPEG saved to: $uri")
         } ?: Log.e("SaveJPEG", "Failed to save JPEG")
     }
-
+    // Save JPEG to Gallery which is converted in app from raw to jpeg
     fun saveBitmapAsJpeg(bitmap: Bitmap, dngFile: File): File? {
         try {
             // Define JPEG file name (Same as DNG, but with .jpg extension)
@@ -62,9 +64,7 @@ object SaveUtils {
     }
 
 
-
-
-    //    // Save DNG to Gallery
+    //    // Save DNG to Gallery with Metadata
 
     fun saveDngAndMetaToGallery(
         context: Context,
@@ -93,16 +93,16 @@ object SaveUtils {
             Log.d("SaveDNG", "DNG saved to: $uri")
         } ?: Log.e("SaveDNG", "Failed to save DNG")
 
-        // **2️⃣ Extract Metadata from CaptureResult**
+        // ** Extract Metadata from CaptureResult**
         val metadataMap = mutableMapOf<String, Any?>()
         for (key in result.keys) {
             metadataMap[key.name] = result.get(key)
         }
 
-        // **3️⃣ Convert Metadata to JSON**
+        // ** Convert Metadata to JSON**
         val metadataJson = JSONObject(metadataMap).toString(4) // Pretty print JSON
 
-        // **4️⃣ Save Metadata as a JSON File**
+        // ** Save Metadata as a JSON File**
         val metaFileName = "$fileName.json"
         val metaContentValues = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, metaFileName)
@@ -123,7 +123,7 @@ object SaveUtils {
         } ?: Log.e("SaveMetadata", "Failed to save metadata")
     }
 
-    //    Saves the given Bitmap as a JPEG file.*/
+    //    Saves the given Bitmap of prcessesd image RGB2RGB model as a JPEG file.*/
     fun saveBitmapToFile(bitmap: Bitmap, fileParentName: String, filePath: String) {
         try {
             val fileNameProcessed = "${fileParentName}_Processed.jpeg"
@@ -140,5 +140,35 @@ object SaveUtils {
         }
 
 
+    }
+    // Saving the processes image as a DNG file from raw 2 raw model
+     fun saveProcessedDngFile(
+        dngCreator: DngCreator,
+        processedBuffer: ByteBuffer,
+        filePathParent: String,
+        fileNameParent: String,
+        width: Int,
+        height: Int
+    ) {
+        try {
+            // Create a DNG file in the app's private storage
+            val fileName = "${fileNameParent}_Processed.dng"
+            val dngFile = File(filePathParent, fileName)
+            Log.d("DNG-Save", "DNG file will be saved at: ${dngFile.absolutePath}")
+
+            // Reset buffer position before writing
+            processedBuffer.rewind()
+
+            // Save the processed buffer to the DNG file
+            Log.d("DNG-Save", "Writing processed buffer to DNG file...")
+            FileOutputStream(dngFile).use { outputStream ->
+                dngCreator.writeByteBuffer(outputStream, Size(width, height), processedBuffer, 0)
+            }
+            Log.d("DNG-Save", "DNG file saved successfully at: ${dngFile.absolutePath}")
+
+        } catch (e: Exception) {
+            Log.e("DNG-Save", "Error writing DNG file: ${e.message}")
+            e.printStackTrace()
+        }
     }
 }
