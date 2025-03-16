@@ -90,6 +90,7 @@ import kotlin.coroutines.suspendCoroutine
 import kotlin.ranges.coerceIn
 import android.os.Environment
 import android.provider.MediaStore
+import android.util.Size
 import functionalities.RGB2RGBmodel
 import functionalities.SaveUtils
 import functionalities.ModelUtils
@@ -542,9 +543,12 @@ class CameraFragment : Fragment() {
 //                    } else {
 //                        Log.e("ImageProcessing", "Failed to decode RAW image to Bitmap.")
 //                    }
+
+//                    val sensorSize = result.image.sensorSize
+                    val chaes = characteristics
                     val rawData = convertRawToFloatArrayFast(rawImage)
                     if (rawData != null) {
-                        runInferenceOnRaw(rawData, interpreter, dngCreator, requireContext(), filePath,fileName)
+                        runInferenceOnRaw(rawData, interpreter, dngCreator, requireContext(), filePath,fileName, chaes)
                     }
                     rawImage.close();
                 } catch (exc: IOException) {
@@ -684,7 +688,7 @@ class CameraFragment : Fragment() {
     }
 
 
-    fun runInferenceOnRaw(inputArray: FloatArray, interpreter: Interpreter, dngCreator: DngCreator,context: Context, filePath: String, fileName: String) {
+    fun runInferenceOnRaw(inputArray: FloatArray, interpreter: Interpreter, dngCreator: DngCreator,context: Context, filePath: String, fileName: String,cameraCharacteristics: CameraCharacteristics) {
         try {
 
             //Get input tensor info
@@ -731,7 +735,8 @@ class CameraFragment : Fragment() {
 
             // Save the processed output as a DNG file
 //            val dngCreator = DngCreator(characteristics, result.metadata)
-            saveRawProcessedOutput(outputArray1D, outputShape, dngCreator, requireContext(), filePath,fileName)
+
+            saveRawProcessedOutput(outputArray1D, outputShape, dngCreator, requireContext(), filePath,fileName, cameraCharacteristics)
 
         } catch (e: Exception) {
             Log.e("ModelError", "Error during inference: ${e.message}")
@@ -740,91 +745,194 @@ class CameraFragment : Fragment() {
 
 
     private fun saveRawProcessedOutput(
-
-
         floatArray: FloatArray,  // Model output (normalized 0.0 - 1.0)
         dimensions: IntArray,     // Expected [1, C, H, W] (C=1 or 4)
-//
         dngCreator: DngCreator,
         context: Context,
         filePathParent: String,
-        fileNameParent: String
+        fileNameParent: String,
+        cameraCharacteristics: CameraCharacteristics
     ) {
         try {
             val channels = dimensions[1]  // Number of channels (1 for RAW, 4 for RGBA)
             val height = dimensions[2]    // Image height
             val width = dimensions[3]     // Image width
 
-            Log.d("DNG-Save", "Saving DNG with size: $width x $height, Channels: $channels")
+            Log.d("DNG-Save", "Initializing DNG Save Process")
+            Log.d("DNG-Save", "Image Dimensions: Width=$width, Height=$height, Channels=$channels")
 
             // Convert FloatArray to 16-bit RAW ByteArray
+            Log.d("DNG-Save", "Converting float array to 16-bit RAW byte buffer...")
             val byteBuffer = ByteBuffer.allocate(floatArray.size * 2).order(ByteOrder.LITTLE_ENDIAN)
             for (value in floatArray) {
                 val scaledValue = (value * 65535).toInt().coerceIn(0, 65535)  // Normalize 0.0 - 1.0 to 0 - 65535
                 byteBuffer.putShort(scaledValue.toShort())
             }
+            val processedBuffer = byteBuffer
+            Log.d("DNG-Save", "Float array conversion completed. Buffer size: ${processedBuffer.capacity()} bytes")
 
             // Create ImageReader for RAW storage
+            Log.d("DNG-Save", "Creating ImageReader with format RAW_SENSOR...")
             val format = android.graphics.ImageFormat.RAW_SENSOR
+
+
+            // Create a DNG file in the app's private storage
+            val fileName = "${fileNameParent}_Processed.dng"
+            val dngFile = File(filePathParent, fileName)
+            Log.d("DNG-Save", "DNG file will be saved at: ${dngFile.absolutePath}")
+
+            // Reset buffer position before writing
+            processedBuffer.rewind()
+
+            // Extract width & height from CameraCharacteristics
+            Log.d("DNG-Save", "Extracting sensor metadata...")
+            val sensorSize = cameraCharacteristics.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE)
+                ?: throw IllegalStateException("Sensor size not available")
+            Log.d("DNG-Save", "Sensor metadata extracted successfully")
+
+            // Save the processed buffer to the DNG file
+            Log.d("DNG-Save", "Writing processed buffer to DNG file...")
+            FileOutputStream(dngFile).use { outputStream ->
+                dngCreator.writeByteBuffer(outputStream, Size(width, height), processedBuffer, 0)
+            }
+            Log.d("DNG-Save", "DNG file saved successfully at: ${dngFile.absolutePath}")
+
             val imageReader = ImageReader.newInstance(width, height, format, 1)
 
             // Acquire an image to store the processed data
+            Log.d("DNG-Save", "Acquiring Image from ImageReader...")
             val image = imageReader.acquireNextImage()
-            image?.planes?.get(0)?.buffer?.put(byteBuffer.array())
+            if (image != null) {
+                Log.d("DNG-Save", "Image acquired successfully. Writing buffer data to image...")
+                image.planes[0].buffer.put(byteBuffer.array())
 
-            // Create a DNG file in the app's private storage
-//            val dngFile = File(File("/data/data/com.yourapp/files/"), "processed_output.dng")
-
-            // Save using DngCreatorval resolver = context.contentResolver
-            val resolver = context?.contentResolver
-            val sdf = SimpleDateFormat("yyyy_MM_dd_HH_mm_ss_SSS", Locale.US)
-            val fileName = "${fileNameParent}_Processed.jpeg.dng"
-
-            if (resolver != null) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    // ✅ Android 10+ (API 29+): Use MediaStore API
-                    val contentValues = ContentValues().apply {
-                        put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-                        put(MediaStore.MediaColumns.MIME_TYPE, "image/x-adobe-dng")
-                        put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Camera2Basic/Images/")
-                    }
-
-                    val uri = resolver.insert(MediaStore.Files.getContentUri("external"), contentValues)
-                    uri?.let {
-                        resolver.openOutputStream(it)?.use { outputStream ->
-//                            val dngCreator = DngCreator(characteristics, result.metadata)
-                            dngCreator.writeImage(outputStream, image)
-                            Log.d("DNG-Save", "DNG file saved at: $uri")
-                        }
-                    } ?: Log.e("DNG-Save", "Failed to create DNG file in Downloads folder")
-
-                } else {
-                    // ✅ Android 9 and Below (API 28-21): Use File API
-                    val dngFile = File(filePathParent, fileName)
-
-                    dngFile.parentFile?.mkdirs() // Ensure the directory exists
-
-                    FileOutputStream(dngFile).use { outputStream ->
-//                        val dngCreator = DngCreator(characteristics, result.metadata)
-                        dngCreator.writeImage(outputStream, image)
-                    }
-
-                    Log.d("DNG-Save", "DNG file saved at: ${dngFile.absolutePath}")
-                }
-
-                // Release resources
-
+                image.close()
+            } else {
+                Log.e("DNG-Save", "Failed to acquire image from ImageReader. Image is null.")
             }
 
-            // Release resources
-            image.close()
             imageReader.close()
+            Log.d("DNG-Save", "ImageReader closed successfully.")
 
         } catch (e: Exception) {
             Log.e("DNG-Save", "Error saving DNG file: ${e.message}")
+            e.printStackTrace()
         }
-
     }
+
+//
+//    private fun saveRawProcessedOutput(
+//
+//
+//        floatArray: FloatArray,  // Model output (normalized 0.0 - 1.0)
+//        dimensions: IntArray,     // Expected [1, C, H, W] (C=1 or 4)
+////
+//        dngCreator: DngCreator,
+//        context: Context,
+//        filePathParent: String,
+//        fileNameParent: String,
+////        originalRawImage: CaptureResult, // Original RAW Image (for metadata)
+////        result: CaptureResult, // Original RAW Image (for metadata)
+//        cameraCharacteristics: CameraCharacteristics
+//
+//    ) {
+//        try {
+//            val channels = dimensions[1]  // Number of channels (1 for RAW, 4 for RGBA)
+//            val height = dimensions[2]    // Image height
+//            val width = dimensions[3]     // Image width
+//
+//            Log.d("DNG-Save", "Saving DNG with size: $width x $height, Channels: $channels")
+//
+//            // Convert FloatArray to 16-bit RAW ByteArray
+//            val byteBuffer = ByteBuffer.allocate(floatArray.size * 2).order(ByteOrder.LITTLE_ENDIAN)
+//            for (value in floatArray) {
+//                val scaledValue =
+//                    (value * 65535).toInt().coerceIn(0, 65535)  // Normalize 0.0 - 1.0 to 0 - 65535
+//                byteBuffer.putShort(scaledValue.toShort())
+//            }
+//            val processedBuffer = byteBuffer
+//
+//            // Create ImageReader for RAW storage
+//            val format = android.graphics.ImageFormat.RAW_SENSOR
+//            val imageReader = ImageReader.newInstance(width, height, format, 1)
+//
+//            // Acquire an image to store the processed data
+//            val image = imageReader.acquireNextImage()
+//            image?.planes?.get(0)?.buffer?.put(byteBuffer.array())
+//
+//            // Create a DNG file in the app's private storage
+////            val dngFile = File(File("/data/data/com.yourapp/files/"), "processed_output.dng")
+//
+//
+//            // Save using DngCreatorval resolver = context.contentResolver
+//            val resolver = context?.contentResolver
+//            val sdf = SimpleDateFormat("yyyy_MM_dd_HH_mm_ss_SSS", Locale.US)
+//            val fileName = "${fileNameParent}_Processed.jpeg.dng"
+//            val dngFile = File(filePathParent, fileName)
+//
+//            // Step 2: Prepare the processed buffer for writing (reset buffer position)
+//            processedBuffer.rewind() // Reset position before writing
+//
+//            // Step 3: Extract width & height from CameraCharacteristics (or capture result)
+////            val sensorSize = result.me.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE)
+//            val sensorSize = cameraCharacteristics.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE)
+////            val width = sensorSize?.width() ?: throw IllegalStateException("Width not available")
+////            val height = sensorSize?.height() ?: throw IllegalStateException("Height not available")
+//
+//            // Step 4: Use DngCreator with metadata
+////            val dngCreator = DngCreator(cameraCharacteristics, captureResult)
+//
+//            // Step 5: Save the processed buffer to the DNG file
+//            FileOutputStream(dngFile).use { outputStream ->
+//                // The offset here is set to 0 because you are directly writing the processed buffer
+//                dngCreator.writeByteBuffer(outputStream, Size(width, height), processedBuffer, 0)
+//
+//
+////            if (resolver != null) {
+////                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+////                    // ✅ Android 10+ (API 29+): Use MediaStore API
+////                    val contentValues = ContentValues().apply {
+////                        put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+////                        put(MediaStore.MediaColumns.MIME_TYPE, "image/x-adobe-dng")
+////                        put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Camera2Basic/Images/")
+////                    }
+////
+////                    val uri = resolver.insert(MediaStore.Files.getContentUri("external"), contentValues)
+////                    uri?.let {
+////                        resolver.openOutputStream(it)?.use { outputStream ->
+//////                            val dngCreator = DngCreator(characteristics, result.metadata)
+////                            dngCreator.writeImage(outputStream, image)
+////                            Log.d("DNG-Save", "DNG file saved at: $uri")
+////                        }
+////                    } ?: Log.e("DNG-Save", "Failed to create DNG file in Downloads folder")
+////
+////                } else {
+////                    // ✅ Android 9 and Below (API 28-21): Use File API
+////                    val dngFile = File(filePathParent, fileName)
+////
+////                    dngFile.parentFile?.mkdirs() // Ensure the directory exists
+////
+////                    FileOutputStream(dngFile).use { outputStream ->
+//////                        val dngCreator = DngCreator(characteristics, result.metadata)
+////                        dngCreator.writeImage(outputStream, image)
+////                    }
+////
+////                    Log.d("DNG-Save", "DNG file saved at: ${dngFile.absolutePath}")
+////                }
+////
+////                // Release resources
+////
+////            }
+//
+//                // Release resources
+//                image.close()
+//                imageReader.close()
+//
+//            } catch (e: Exception) {
+//                Log.e("DNG-Save", "Error saving DNG file: ${e.message}")
+//            }
+//
+//        }}
 
 
 //    private fun saveRawProcessedOutput(
