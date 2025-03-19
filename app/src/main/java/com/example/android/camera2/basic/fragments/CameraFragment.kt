@@ -133,6 +133,8 @@ class CameraFragment : Fragment() {
     private lateinit var imageReaderDepth: ImageReader
     //For model inferences
     private lateinit var interpreter: Interpreter
+    private lateinit var interpreter2: Interpreter
+
 
 
     /** [HandlerThread] where all camera operations run */
@@ -183,8 +185,11 @@ class CameraFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         try {
-            interpreter = ModelUtils.createInterpreter(requireContext(), "model.tflite")
-            Log.d("Model---", "Interpreter initialized successfully.")
+            interpreter = ModelUtils.createInterpreter(requireContext(), "simple_modelmarc.tflite")
+            Log.d("Model---", "Interpreter initialized for raw successfully.")
+
+            interpreter2 = ModelUtils.createInterpreter(requireContext(), "simple_model_i.tflite")
+            Log.d("Model---", "Interpreter initialized for rgb successfully.")
         } catch (e: Exception) {
             Log.e("Model--", "Failed to initialize interpreter: ${e.message}")
         }
@@ -536,17 +541,19 @@ class CameraFragment : Fragment() {
                     val bitmap = loadDngAsBitmap(dngFile)
                     SaveUtils.saveBitmapAsJpeg(bitmap!!, dngFile)
 
-                    // Ensure the Bitmap is not null before running inference
-//                    if (bitmap != null) {
-//                        RGB2RGBmodel.runInferenceOnBitmap(bitmap, interpreter, fileName, filePath)
-//                    } else {
-//                        Log.e("ImageProcessing", "Failed to decode RAW image to Bitmap.")
-//                    }
+//                   Ensure the Bitmap is not null before running inference
+                    if (bitmap != null) {
+                                RGB2RGBmodel.runInferenceOnBitmap(bitmap, interpreter2, fileName, filePath)
+                                Log.d("RgbInference", "Inference rgb completed successfully.")
+                    } else {
+                                Log.e("ImageProcessing", "Failed to decode RAW image to Bitmap.")
+                    }
 
                     // Run inference on the raw image data directly from sensor
                     val rawData = Raw2RawModelPipeline.convertRawToFloatArrayFast(rawImage) // to send data to model we first need to convert into float array
                     if (rawData != null) {
                         Raw2RawModelPipeline.runInferenceOnRaw(rawData, interpreter, dngCreator, filePath,fileName)
+                        Log.d("RawInference", "Inference raw completed successfully.")
                     }
 
                     rawImage.close();
