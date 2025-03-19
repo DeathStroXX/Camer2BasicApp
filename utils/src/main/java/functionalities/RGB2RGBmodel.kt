@@ -36,8 +36,14 @@ object RGB2RGBmodel {
 //            val ubyteArray  =  Array(1) { UByteArray(outputSize) }
             Log.d("OutputArraySize", "Dimensions: ${outputArray.size} x ${outputArray[0].size}")
             // Run inference
+            val startTime = System.nanoTime()
             interpreter.run(arrayOf(inputArray), outputArray)
+            val endTime = System.nanoTime()
             Log.d("Inference", "Inference completed successfully.")
+
+            val inferenceTimeMs = (endTime - startTime) / 1_000_000.0
+            Log.d("TFLite-Inference", "Inference Time: $inferenceTimeMs ms")
+
 
             // Process the output(example: find the predicted class)
 //            val predictedClass = outputArray[0].withIndex().maxByOrNull { it.value }?.index

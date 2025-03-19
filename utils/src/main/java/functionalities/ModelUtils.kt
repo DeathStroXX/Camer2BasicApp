@@ -22,7 +22,7 @@ object ModelUtils {
 //        val fileDescriptor = assetManager.openFd("simple_model 17.tflite")
 //        val fileDescriptor = assetManager.openFd("simple_model18.tflite")
 //        val fileDescriptor = assetManager.openFd("bayer_unpack3.tflite")
-          val fileDescriptor = assetManager.openFd("simple_model_A.tflite")
+          val fileDescriptor = assetManager.openFd("simple_modelmarc.tflite")
 
 
 

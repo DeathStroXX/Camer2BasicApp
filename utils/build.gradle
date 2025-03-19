@@ -73,5 +73,6 @@ dependencies {
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.2.0'
 
     //Neural Network dependencies
-    implementation 'org.tensorflow:tensorflow-lite:2.11.0'
+    implementation 'org.tensorflow:tensorflow-lite:2.13.0'  // Use the latest stable version
+    implementation 'org.tensorflow:tensorflow-lite-gpu:2.13.0'  // Optional: GPU acceleration
 }

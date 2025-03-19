@@ -20,6 +20,10 @@ import java.nio.ShortBuffer
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import org.tensorflow.lite.Delegate
+import org.tensorflow.lite.Tensor
+import org.tensorflow.lite.gpu.GpuDelegate
+import org.tensorflow.lite.nnapi.NnApiDelegate
 
 object Raw2RawModelPipeline {
 
@@ -32,8 +36,8 @@ object Raw2RawModelPipeline {
             }
             val width = rawImage.width
             val height = rawImage.height
-            val targetWidth = 4000
-            val targetHeight = 3000
+            val targetWidth = 4080
+            val targetHeight = 3072
 
             val rawBuffer: ByteBuffer = rawImage.planes[0].buffer
             if (rawBuffer == null) {
@@ -103,6 +107,26 @@ object Raw2RawModelPipeline {
 
     }
 
+    fun checkModelExecution(interpreter: Interpreter, delegate: Delegate?) {
+        val executionType = when (delegate) {
+            is GpuDelegate -> "GPU"
+            is NnApiDelegate -> "NNAPI"
+            else -> "CPU (Default)"
+        }
+
+        // Check Floating Point Precision (FP32 or FP16)
+        val inputTensor: Tensor = interpreter.getInputTensor(0)
+        val tensorDataType = when (inputTensor.dataType()) {
+            org.tensorflow.lite.DataType.FLOAT32 -> "FP32 (Float32)"
+//            org.tensorflow.lite.DataType.FLOAT16 -> "FP16 (Float16)"
+            else -> "Unknown Data Type"
+        }
+
+        // Log the results
+        Log.d("TFLite-Execution", "Running on: $executionType")
+        Log.d("TFLite-Precision", "Precision: $tensorDataType")
+    }
+
     fun runInferenceOnRaw(inputArray: FloatArray, interpreter: Interpreter, dngCreator: DngCreator, filePath: String, fileName: String) {
         try {
 
@@ -127,8 +151,15 @@ object Raw2RawModelPipeline {
             Log.d("OutputArraySize", "Dimensions: ${outputArray.size} x ${outputArray[0].size}")
 
             // Run inference
+            val startTime = System.nanoTime()
             interpreter.run(arrayOf(inputArray), outputArray)
+            val endTime = System.nanoTime()
             Log.d("Inference", "Inference completed successfully.")
+
+            val inferenceTimeMs = (endTime - startTime) / 1_000_000.0
+            Log.d("TFLite-Inference", "Inference Time: $inferenceTimeMs ms")
+
+            checkModelExecution(interpreter, null)
 
             // Flatten the output array (1D FloatArray)
             val outputArray1D: FloatArray = if (outputArray.isNotEmpty()) {
