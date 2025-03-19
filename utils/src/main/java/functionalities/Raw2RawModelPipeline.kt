@@ -77,28 +77,14 @@ object Raw2RawModelPipeline {
             Log.d("FloatArrayRange", "Min: $minVal, Max: $maxVal")
 
 
-            // Resize only if the image is not already 3000x4000
-            return if (width != targetWidth || height != targetHeight) {
-                Log.d("ImageResize", "Resizing from ${width}x${height} to ${targetWidth}x${targetHeight}")
-//                resizeBilinear(floatArray, width, height, targetWidth, targetHeight)
-//                val resizedArray = resizeBilinear(floatArray, width, height, targetWidth, targetHeight)
-                val resizedArray = floatArray
-
-                // Log values after resizing
-                val resizedLogValues = resizedArray.take(20).joinToString(", ")
-                Log.d("FloatArrayValues_After", "First 20 values: [$resizedLogValues]")
 
                 // Log min and max after resizing
-                val resizedMin = resizedArray.minOrNull() ?: 0f
-                val resizedMax = resizedArray.maxOrNull() ?: 0f
-                Log.d("FloatArrayRange_After", "Min: $resizedMin, Max: $resizedMax")
+                val min = floatArray.minOrNull() ?: 0f
+                val max = floatArray.maxOrNull() ?: 0f
+                Log.d("FloatArrayRange_After", "Min: $min, Max: $max")
 
-                resizedArray
-            } else {
-                Log.d("ImageResize", "No resizing needed.")
-                floatArray
+            return  floatArray
 
-            }
 
         } catch (e: Exception) {
             Log.e("convertRawToFloatArray-", "Exception in convertRawToFloatArrayFast", e)
@@ -213,7 +199,7 @@ object Raw2RawModelPipeline {
 
             // Create ImageReader for RAW storage
             Log.d("DNG-Save", "Creating ImageReader with format RAW_SENSOR...")
-            val format = android.graphics.ImageFormat.RAW_SENSOR
+//
 
                 SaveUtils.saveProcessedDngFile(dngCreator, processedBuffer, filePathParent, fileNameParent, width, height)
 

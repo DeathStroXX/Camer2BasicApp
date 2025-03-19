@@ -58,6 +58,7 @@ dependencies {
 
     // EXIF Interface
     implementation 'androidx.exifinterface:exifinterface:1.2.0'
+    implementation 'com.google.android.gms:play-services-tflite-gpu:16.4.0'
 
     // Unit testing
     testImplementation 'androidx.test.ext:junit:1.1.1'

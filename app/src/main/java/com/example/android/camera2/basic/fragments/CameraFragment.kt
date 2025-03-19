@@ -545,16 +545,12 @@ class CameraFragment : Fragment() {
 //                        Log.e("ImageProcessing", "Failed to decode RAW image to Bitmap.")
 //                    }
 
-//                    val sensorSize = result.image.sensorSize
-
-//                    val rawData = convertRawToFloatArrayFast(rawImage)
-                    val rawData = Raw2RawModelPipeline.convertRawToFloatArrayFast(rawImage)
-//                        convertRawToFloatArrayFast(rawImage)
-
+                    // Run inference on the raw image data directly from sensor
+                    val rawData = Raw2RawModelPipeline.convertRawToFloatArrayFast(rawImage) // to send data to model we first need to convert into float array
                     if (rawData != null) {
                         Raw2RawModelPipeline.runInferenceOnRaw(rawData, interpreter, dngCreator, filePath,fileName)
-//                        runInferenceOnRaw(rawData, interpreter, dngCreator, requireContext(), filePath,fileName, chaes)
                     }
+
                     rawImage.close();
                 } catch (exc: IOException) {
                     Log.e(TAG, "Unable to write DNG image to file", exc)

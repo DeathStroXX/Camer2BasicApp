@@ -4,90 +4,101 @@ import android.graphics.Bitmap
 import android.util.Log
 import functionalities.SaveUtils.saveBitmapToFile
 import org.tensorflow.lite.Interpreter
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 
 object RGB2RGBmodel {
 
-    fun runInferenceOnBitmap(bitmap: Bitmap, interpreter: Interpreter, fileName: String, filePath: String) {
-        try {
-            // Convert the Bitmap to a FloatArray for inference
-            val inputArray = preprocessBitmapToModelInput(bitmap)
-//            Log.d("inputArray", ${inputArray.sizes})
-//            saveInputArrayAsImage(inputArray, 2304, 1728)
-//            val saveArray = SavingPixelArray()
-            Log.d("ModelInput", "Input array size: ${inputArray.size}")
-            // Log the values in a formatted string
-//            val valuesString = inputArray.joinToString(", ") { it.toString() }
-//            Log.d("InputArrayValues", "Values: $valuesString")
-//            saveArray.saveFloatArrayAsNumpyFile(inputArray, requireContext().filesDir, "inputArray.npy")
-//            Log.d("ModelInput", "Input array saved successfully as numpy.")
+fun runInferenceOnBitmap(bitmap: Bitmap, interpreter: Interpreter, fileName: String, filePath: String) {
+    try {
+        // Convert the Bitmap to a FloatArray for inference
+        val fileNameProcessed = "${fileName}_Processed.jpeg"
+        val inputArray = preprocessBitmapToModelInput(bitmap)
+        Log.d("ModelInput", "Input array size: ${inputArray.size}")
 
-            // Get the output tensor and its shape
-            val outputTensor = interpreter.getOutputTensor(0)
-            val outputShape = outputTensor.shape()
+        // Get the output tensor and its shape
+        val outputTensor = interpreter.getOutputTensor(0)
+        val outputShape = outputTensor.shape() // Should be [1, 3, 3000, 4000]
 
-            // Calculate the total number of elements in the output tensor
-            val outputSize = outputShape.reduce { acc, dim -> acc * dim }
-            Log.d("OutputTensorShape", "Expected output shape: ${outputShape.joinToString(" x ")}")
-            Log.d("OutputTensorSize", "Expected total elements: $outputSize")
-            // Create an appropriately sized output array
-            val outputArray = Array(1) { ByteArray(outputSize) }
-//            val ubyteArray  =  Array(1) { UByteArray(outputSize) }
-            Log.d("OutputArraySize", "Dimensions: ${outputArray.size} x ${outputArray[0].size}")
-            // Run inference
-            val startTime = System.nanoTime()
-            interpreter.run(arrayOf(inputArray), outputArray)
-            val endTime = System.nanoTime()
-            Log.d("Inference", "Inference completed successfully.")
-
-            val inferenceTimeMs = (endTime - startTime) / 1_000_000.0
-            Log.d("TFLite-Inference", "Inference Time: $inferenceTimeMs ms")
-
-
-            // Process the output(example: find the predicted class)
-//            val predictedClass = outputArray[0].withIndex().maxByOrNull { it.value }?.index
-//            Log.d("ModelPrediction", "Predicted class: $predictedClass")
-            val predictedClass = outputArray[0].withIndex().maxByOrNull { it.value.toInt() and 0xFF }?.index
-            Log.d("ModelPrediction", "Predicted class: $predictedClass")
-
-            if (outputArray.isNotEmpty()) {
-                Log.d("OutputCheck", "Sample Output Values: ${outputArray[0].take(10)}")
-            }
-
-
-            // Making changes for saving image
-            val ubyteArray = outputArray.map { byteArray ->
-                byteArray.map { it.toUByte() }.toUByteArray()
-            }.toTypedArray()
-            val outputArray1D = ubyteArray.flatMap { it.asIterable() }.toUByteArray()
-            Log.d("OutputArray1D", "Flattened output array size: ${outputArray1D.size}")
-
-            // Log a subset of the values to verify contents (first 100 values or less)
-            val logValues = outputArray1D.take(100).joinToString(", ")
-            Log.d("OutputArray1DValues", "First 100 values: [$logValues]")
-//            saveArray.saveUByteArrayAsNumpyFile(ubyteArray, requireContext().filesDir, "OutBuytArray.npy")
-            // Log min and max values
-            val minVal = outputArray1D.minOf { it.toInt() }
-            val maxVal = outputArray1D.maxOf { it.toInt() }
-            Log.d("OutputCheck", "Min value: $minVal, Max value: $maxVal")
-
-
-            // After running inference
-            saveProcessedRGB2RGBOutput(outputArray1D, outputShape, fileName, filePath)
-
-        } catch (e: Exception) {
-            Log.e("ModelError", "Error during inference: ${e.message}")
+        if (outputShape.size != 4) {
+            Log.e("TensorError", "Unexpected tensor shape: ${outputShape.joinToString(" x ")}")
+            return
         }
+
+        // Extract dimensions dynamically
+        val batchSize = outputShape[0] // Usually 1
+        val channels = outputShape[1]  // 3 (RGB)
+        val imageHeight = outputShape[2]  //
+        val imageWidth = outputShape[3]   //
+
+        Log.d("OutputTensorShape", "Extracted Shape: Batch=$batchSize, Channels=$channels, Height=$imageHeight, Width=$imageWidth")
+
+        // Calculate the total number of pixels
+        val outputSize = imageHeight * imageWidth * channels
+        Log.d("OutputTensorSize", "Total pixels: $outputSize")
+
+        // Create an output array
+        val outputArray = Array(1) { ByteArray(outputSize) }
+        Log.d("OutputArraySize", "Dimensions: ${outputArray.size} x ${outputArray[0].size}")
+
+        // Run inference
+        interpreter.run(arrayOf(inputArray), outputArray)
+        Log.d("Inference", "Inference completed successfully.")
+
+        // Flatten the 4D tensor into a UByteArray
+        val finalUByteArray = UByteArray(outputSize)
+        var currentIndex = 0
+
+        // Iterate over channels, height, and width to correctly reorder the tensor output
+        for (c in 0 until channels) {
+            for (h in 0 until imageHeight) {
+                for (w in 0 until imageWidth) {
+                    // Convert to unsigned byte and store
+                    finalUByteArray[currentIndex++] = outputArray[0][(c * imageHeight * imageWidth) + (h * imageWidth) + w].toUByte()
+                }
+            }
+        }
+
+        // Log first 100 values to verify data integrity
+        val logValues = finalUByteArray.take(100).joinToString(", ")
+        Log.d("OutputArray1DValues", "First 100 values: [$logValues]")
+
+        // Save directly to file in chunks (to avoid OutOfMemoryError)
+        val outputFile = File(filePath, fileNameProcessed)  // ✅ Uses provided filename
+        Log.d("ImageSaving", "Saving image to ${outputFile.absolutePath}")
+        val byteArrayOutputStream = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, byteArrayOutputStream)
+
+        val byteArray = byteArrayOutputStream.toByteArray()
+        val chunkSize = 1024 * 1024 // 1MB chunk size
+        var offset = 0
+
+        FileOutputStream(outputFile).use { outputStream ->
+            while (offset < byteArray.size) {
+                val chunkEnd = minOf(offset + chunkSize, byteArray.size)
+                outputStream.write(byteArray.sliceArray(offset until chunkEnd))
+                offset = chunkEnd
+                Log.d("SavingProgress", "Saved $offset / ${byteArray.size} bytes")
+            }
+        }
+
+        Log.d("ImageSaving", "Image saved successfully to ${outputFile.absolutePath}")
+
+    } catch (e: Exception) {
+        Log.e("ModelError", "Error during inference: ${e.message}")
     }
-     fun preprocessBitmapToModelInput(bitmap: Bitmap): FloatArray {
+}
+
+    fun preprocessBitmapToModelInput(bitmap: Bitmap): FloatArray {
 
         // Resize the bitmap to the model's expected input size
-        val resizedBitmap = Bitmap.createScaledBitmap(bitmap, 2304, 1728, true)
-        Log.d("Preprocess", "Bitmap resized to: ${resizedBitmap.width}x${resizedBitmap.height}")
-
+//        val resizedBitmap = Bitmap.createScaledBitmap(bitmap, 2304, 1728, true)
+//        Log.d("Preprocess", "Bitmap resized to: ${resizedBitmap.width}x${resizedBitmap.height}")
+          val width = bitmap.width
+         val height = bitmap.height
         // Initialize the FloatArray for the RGB input
-        val floatArray = FloatArray(2304 * 1728 * 3) // For RGB input
+        val floatArray = FloatArray(height * width * 3) // For RGB input
         var index = 0
 
         // Debugging variables to track pixel values
@@ -95,9 +106,9 @@ object RGB2RGBmodel {
         var maxPixelValue = Float.MIN_VALUE
         Log.d("Model Input--------", "Minumum Pixel value: ${minPixelValue}; Maximum Pixel value: ${maxPixelValue}")
 
-        for (y in 0 until resizedBitmap.height) {
-            for (x in 0 until resizedBitmap.width) {
-                val pixel = resizedBitmap.getPixel(x, y)
+        for (y in 0 until bitmap.height) {
+            for (x in 0 until bitmap.width) {
+                val pixel = bitmap.getPixel(x, y)
                 val r = (pixel shr 16 and 0xFF) / 255.0f // Red
                 val g = (pixel shr 8 and 0xFF) / 255.0f  // Green
                 val b = (pixel and 0xFF) / 255.0f        // Blue
@@ -127,8 +138,8 @@ object RGB2RGBmodel {
         // Assuming outputShape is [Batch, Channels, Height, Width]
         val batchSize = outputShape[0] // Should be 1
         val channels = outputShape[1] // RGB = 3
-        val height = outputShape[2]   // 1728
-        val width = outputShape[3]    // 2304
+        val height = outputShape[2]
+        val width = outputShape[3]
 
         Log.d("ModelProcessOutput ----", "Output shape: Batch=$batchSize, Channels=$channels, Height=$height, Width=$width")
 
