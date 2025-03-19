@@ -522,7 +522,7 @@ class CameraFragment : Fragment() {
                 try {
 
                     val rawImage = result.image
-                    val rawBuffer = rawImage.planes[0].buffer
+//                    val rawBuffer = rawImage.planes[0].buffer
 
 
                     val dngCreator = DngCreator(characteristics, result.metadata)
@@ -535,8 +535,6 @@ class CameraFragment : Fragment() {
                     val filePath = dngFile.parent
                     val bitmap = loadDngAsBitmap(dngFile)
                     SaveUtils.saveBitmapAsJpeg(bitmap!!, dngFile)
-
-                    // Extact  RGB array from dng file
 
                     // Ensure the Bitmap is not null before running inference
 //                    if (bitmap != null) {
