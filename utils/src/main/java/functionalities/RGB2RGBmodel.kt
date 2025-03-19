@@ -2,6 +2,7 @@ package functionalities
 
 import android.graphics.Bitmap
 import android.util.Log
+import functionalities.Raw2RawModelPipeline.checkModelExecution
 import functionalities.SaveUtils.saveBitmapToFile
 import org.tensorflow.lite.Interpreter
 import java.io.ByteArrayOutputStream
@@ -43,8 +44,15 @@ fun runInferenceOnBitmap(bitmap: Bitmap, interpreter: Interpreter, fileName: Str
         Log.d("OutputArraySize", "Dimensions: ${outputArray.size} x ${outputArray[0].size}")
 
         // Run inference
+        val startTime = System.nanoTime()
         interpreter.run(arrayOf(inputArray), outputArray)
+        val endTime = System.nanoTime()
         Log.d("Inference", "Inference completed successfully.")
+
+        val inferenceTimeMs = (endTime - startTime) / 1_000_000.0
+        Log.d("TFLite-Inference", "Inference Time: $inferenceTimeMs ms")
+
+        checkModelExecution(interpreter, null)
 
         // Flatten the 4D tensor into a UByteArray
         val finalUByteArray = UByteArray(outputSize)
