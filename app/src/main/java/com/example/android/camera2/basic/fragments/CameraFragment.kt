@@ -59,6 +59,7 @@ import androidx.navigation.fragment.navArgs
 //import androidx.paging.map
 
 import android.content.ContentValues
+import android.net.Uri
 import com.example.android.camera.utils.computeExifOrientation
 import com.example.android.camera.utils.getPreviewOutputSize
 import com.example.android.camera.utils.OrientationLiveData
@@ -91,6 +92,8 @@ import kotlin.ranges.coerceIn
 import android.os.Environment
 import android.provider.MediaStore
 import android.util.Size
+import android.widget.Button
+import androidx.activity.result.contract.ActivityResultContracts
 import functionalities.RGB2RGBmodel
 import functionalities.SaveUtils
 import functionalities.ModelUtils
@@ -135,6 +138,22 @@ class CameraFragment : Fragment() {
     private lateinit var interpreter: Interpreter
     private lateinit var interpreter2: Interpreter
 
+    private var rawModelPath: Uri? = null
+    private var rgbModelPath: Uri? = null
+
+    private val selectRawModelLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let {
+            rawModelPath = it
+            loadModel(it, isRaw = true)
+        }
+    }
+
+    private val selectRgbModelLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let {
+            rgbModelPath = it
+            loadModel(it, isRaw = false)
+        }
+    }
 
 
     /** [HandlerThread] where all camera operations run */
@@ -171,6 +190,32 @@ class CameraFragment : Fragment() {
     /** Live data listener for changes in the device orientation relative to the camera */
     private lateinit var relativeOrientation: OrientationLiveData
 
+
+    private fun loadModel(uri: Uri, isRaw: Boolean) {
+        try {
+            val modelFile = requireContext().contentResolver.openInputStream(uri)?.readBytes()
+            if (modelFile != null) {
+                val buffer = ByteBuffer.allocateDirect(modelFile.size).apply {
+                    order(ByteOrder.nativeOrder())
+                    put(modelFile)
+                }
+
+                if (isRaw) {
+                    interpreter = Interpreter(buffer)
+                    Log.d("Model---", "Interpreter initialized for RAW successfully from selected file.")
+                } else {
+                    interpreter2 = Interpreter(buffer)
+                    Log.d("Model---", "Interpreter initialized for RGB successfully from selected file.")
+                }
+            } else {
+                Log.e("Model--", "Failed to load model file.")
+            }
+        } catch (e: Exception) {
+            Log.e("Model--", "Failed to initialize interpreter: ${e.message}")
+        }
+    }
+
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -185,11 +230,13 @@ class CameraFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         try {
-            interpreter = ModelUtils.createInterpreter(requireContext(), "simple_modelmarc.tflite")
-            Log.d("Model---", "Interpreter initialized for raw successfully.")
+            view.findViewById<Button>(R.id.btnSelectRawModel).setOnClickListener {
+                selectRawModelLauncher.launch("application/octet-stream") // Filter for .tflite files
+            }
 
-            interpreter2 = ModelUtils.createInterpreter(requireContext(), "simple_model_i.tflite")
-            Log.d("Model---", "Interpreter initialized for rgb successfully.")
+            view.findViewById<Button>(R.id.btnSelectRgbModel).setOnClickListener {
+                selectRgbModelLauncher.launch("application/octet-stream") // Filter for .tflite files
+            }
         } catch (e: Exception) {
             Log.e("Model--", "Failed to initialize interpreter: ${e.message}")
         }
@@ -546,7 +593,7 @@ class CameraFragment : Fragment() {
                                 RGB2RGBmodel.runInferenceOnBitmap(bitmap, interpreter2, fileName, filePath)
                                 Log.d("RgbInference", "Inference rgb completed successfully.")
                     } else {
-                                Log.e("ImageProcessing", "Failed to decode RAW image to Bitmap.")
+                                Log.e("ImageProcessing", "Failed to decode RGB image to Bitmap.")
                     }
 
                     // Run inference on the raw image data directly from sensor
