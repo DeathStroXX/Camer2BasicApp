@@ -22,49 +22,105 @@ import android.graphics.ImageFormat
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CameraMetadata
+import android.net.Uri
 import android.os.Bundle
+import android.provider.OpenableColumns
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.TextView
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.Fragment
 import androidx.navigation.Navigation
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.android.camera.utils.GenericListAdapter
 import com.example.android.camera2.basic.R
+import java.io.File
 
 class SelectorFragment : Fragment() {
+
+    private var rawModelPath: Uri? = null
+    private var rgbModelPath: Uri? = null
+
+    private val selectRawModelLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let {
+            rawModelPath = getFilePathFromUri(requireContext(), it)?.let { path -> Uri.parse(path) }
+        }
+    }
+
+    private val selectRgbModelLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let {
+            rgbModelPath = getFilePathFromUri(requireContext(), it)?.let { path -> Uri.parse(path) }
+        }
+    }
+    private fun getFilePathFromUri(context: Context, uri: Uri): String? {
+        val cursor = context.contentResolver.query(uri, null, null, null, null)
+        cursor?.use {
+            val columnIndex = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            if (columnIndex != -1) {
+                it.moveToFirst()
+                val fileName = it.getString(columnIndex)
+                val file = File(context.cacheDir, fileName)
+
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    file.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                return file.absolutePath
+            }
+        }
+        return null
+    }
+
+
+
 
     override fun onCreateView(
             inflater: LayoutInflater,
             container: ViewGroup?,
             savedInstanceState: Bundle?
-    ): View? = RecyclerView(requireContext())
+    ): View? {
+        return inflater.inflate(R.layout.fragment_selector, container, false)
+    }
 
     @SuppressLint("MissingPermission")
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        view as RecyclerView
-        view.apply {
-            layoutManager = LinearLayoutManager(requireContext())
+        val recyclerView = view.findViewById<RecyclerView>(R.id.recyclerView)
+        recyclerView.layoutManager = LinearLayoutManager(requireContext())
 
-            val cameraManager =
-                    requireContext().getSystemService(Context.CAMERA_SERVICE) as CameraManager
+        val cameraManager = requireContext().getSystemService(Context.CAMERA_SERVICE) as CameraManager
+        val cameraList = enumerateCameras(cameraManager)
 
-            val cameraList = enumerateCameras(cameraManager)
-
-            val layoutId = android.R.layout.simple_list_item_1
-            adapter = GenericListAdapter(cameraList, itemLayoutId = layoutId) { view, item, _ ->
-                view.findViewById<TextView>(android.R.id.text1).text = item.title
-                view.setOnClickListener {
-                    Navigation.findNavController(requireActivity(), R.id.fragment_container)
-                            .navigate(SelectorFragmentDirections.actionSelectorToCamera(
-                                    item.cameraId, item.format))
-                }
+        val layoutId = android.R.layout.simple_list_item_1
+        recyclerView.adapter = GenericListAdapter(cameraList, itemLayoutId = layoutId) { view, item, _ ->
+            view.findViewById<TextView>(android.R.id.text1).text = item.title
+            view.setOnClickListener {
+                val action = SelectorFragmentDirections.actionSelectorToCamera(
+                    item.cameraId,
+                    item.format,
+                    rawModelPath?.toString() ?: "",
+                    rgbModelPath?.toString() ?: ""
+                )
+                Navigation.findNavController(requireActivity(), R.id.fragment_container).navigate(action)
             }
-        }
 
+        }
+        try {
+            view.findViewById<Button>(R.id.btnSelectRawModel).setOnClickListener {
+                selectRawModelLauncher.launch("application/octet-stream") // Filter for .tflite files
+            }
+
+            view.findViewById<Button>(R.id.btnSelectRgbModel).setOnClickListener {
+                selectRgbModelLauncher.launch("application/octet-stream") // Filter for .tflite files
+            }
+        } catch (e: Exception) {
+            Log.e("Model--", "Failed to initialize interpreter: ${e.message}")
+        }
     }
 
     companion object {

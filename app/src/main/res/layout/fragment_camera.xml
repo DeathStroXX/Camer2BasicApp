@@ -38,20 +38,6 @@
         android:scaleType="fitCenter"
         android:background="@drawable/ic_shutter"
         android:contentDescription="@string/capture" />
-
-    <Button
-        android:id="@+id/btnSelectRawModel"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_margin="8dp"
-        android:text="Select Raw Model" />
-
-    <Button
-        android:id="@+id/btnSelectRgbModel"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="60dp"
-        android:layout_marginLeft="8dp"
-        android:text="Select RGB Model" />
+    
 
 </FrameLayout>

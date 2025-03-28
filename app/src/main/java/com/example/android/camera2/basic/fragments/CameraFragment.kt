@@ -98,6 +98,7 @@ import functionalities.RGB2RGBmodel
 import functionalities.SaveUtils
 import functionalities.ModelUtils
 import functionalities.Raw2RawModelPipeline
+import kotlinx.coroutines.withContext
 
 
 class CameraFragment : Fragment() {
@@ -138,22 +139,6 @@ class CameraFragment : Fragment() {
     private lateinit var interpreter: Interpreter
     private lateinit var interpreter2: Interpreter
 
-    private var rawModelPath: Uri? = null
-    private var rgbModelPath: Uri? = null
-
-    private val selectRawModelLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        uri?.let {
-            rawModelPath = it
-            loadModel(it, isRaw = true)
-        }
-    }
-
-    private val selectRgbModelLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        uri?.let {
-            rgbModelPath = it
-            loadModel(it, isRaw = false)
-        }
-    }
 
 
     /** [HandlerThread] where all camera operations run */
@@ -191,29 +176,32 @@ class CameraFragment : Fragment() {
     private lateinit var relativeOrientation: OrientationLiveData
 
 
-    private fun loadModel(uri: Uri, isRaw: Boolean) {
+    private fun loadModel(filePath: String, isRaw: Boolean) {
         try {
-            val modelFile = requireContext().contentResolver.openInputStream(uri)?.readBytes()
-            if (modelFile != null) {
-                val buffer = ByteBuffer.allocateDirect(modelFile.size).apply {
-                    order(ByteOrder.nativeOrder())
-                    put(modelFile)
-                }
+            val file = File(filePath)
+            if (!file.exists()) {
+                Log.e("Model--", "Model file does not exist at path: $filePath")
+                return
+            }
 
-                if (isRaw) {
-                    interpreter = Interpreter(buffer)
-                    Log.d("Model---", "Interpreter initialized for RAW successfully from selected file.")
-                } else {
-                    interpreter2 = Interpreter(buffer)
-                    Log.d("Model---", "Interpreter initialized for RGB successfully from selected file.")
-                }
+            val modelFile = file.readBytes()
+            val buffer = ByteBuffer.allocateDirect(modelFile.size).apply {
+                order(ByteOrder.nativeOrder())
+                put(modelFile)
+            }
+
+            if (isRaw) {
+                interpreter = Interpreter(buffer)
+                Log.d("Model---", "Interpreter initialized for RAW successfully from $filePath")
             } else {
-                Log.e("Model--", "Failed to load model file.")
+                interpreter2 = Interpreter(buffer)
+                Log.d("Model---", "Interpreter initialized for RGB successfully from $filePath")
             }
         } catch (e: Exception) {
             Log.e("Model--", "Failed to initialize interpreter: ${e.message}")
         }
     }
+
 
 
     override fun onCreateView(
@@ -229,16 +217,17 @@ class CameraFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        try {
-            view.findViewById<Button>(R.id.btnSelectRawModel).setOnClickListener {
-                selectRawModelLauncher.launch("application/octet-stream") // Filter for .tflite files
-            }
+        val args = CameraFragmentArgs.fromBundle(requireArguments())
 
-            view.findViewById<Button>(R.id.btnSelectRgbModel).setOnClickListener {
-                selectRgbModelLauncher.launch("application/octet-stream") // Filter for .tflite files
-            }
-        } catch (e: Exception) {
-            Log.e("Model--", "Failed to initialize interpreter: ${e.message}")
+        val rawModelPath = args.rawModelPath
+        val rgbModelPath = args.rgbModelPath
+
+        if (rawModelPath.isNotEmpty()) {
+            loadModel(rawModelPath, isRaw = true)
+        }
+
+        if (rgbModelPath.isNotEmpty()) {
+            loadModel(rgbModelPath, isRaw = false)
         }
 
 
@@ -350,6 +339,7 @@ class CameraFragment : Fragment() {
 
 // Save the result to disk
                     val output = saveResult(result)
+
                     Log.d(TAG, "Image saved: ${output.absolutePath}")
 
 
@@ -366,13 +356,13 @@ class CameraFragment : Fragment() {
 
 
                     // Display the photo taken to user
-                    lifecycleScope.launch(Dispatchers.Main) {
-                        navController.navigate(CameraFragmentDirections
-                            .actionCameraToJpegViewer(output.absolutePath)
-                            .setOrientation(result.orientation)
-                            .setDepth(Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
-                                    result.format == ImageFormat.DEPTH_JPEG))
-                    }
+//                    lifecycleScope.launch(Dispatchers.Main) {
+//                        navController.navigate(CameraFragmentDirections
+//                            .actionCameraToJpegViewer(output.absolutePath)
+//                            .setOrientation(result.orientation)
+//                            .setDepth(Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+//                                    result.format == ImageFormat.DEPTH_JPEG))
+//                    }
                 }
 
                 // Re-enable click listener after photo is taken
@@ -604,6 +594,7 @@ class CameraFragment : Fragment() {
                     }
 
                     rawImage.close();
+                    cont.resume(dngFile)
                 } catch (exc: IOException) {
                     Log.e(TAG, "Unable to write DNG image to file", exc)
                     cont.resumeWithException(exc)

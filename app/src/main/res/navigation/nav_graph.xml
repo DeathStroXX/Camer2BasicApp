@@ -70,6 +70,12 @@
             android:id="@+id/action_camera_to_jpeg_viewer"
             app:launchSingleTop="true"
             app:destination="@id/image_viewer_fragment" />
+        <argument
+            android:name="rawModelPath"
+            app:argType="string" />
+        <argument
+            android:name="rgbModelPath"
+            app:argType="string" />
 
     </fragment>
 
