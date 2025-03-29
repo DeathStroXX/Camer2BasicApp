@@ -5,22 +5,35 @@
     android:orientation="vertical"
     android:padding="16dp">
 
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="55dp"
+        android:gravity="center"
+        android:text="Data Collection APP"
+        android:textSize="24sp"
+        android:textStyle="bold" />
+
     <Button
         android:id="@+id/btnSelectRawModel"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Select Raw Model"
-        android:layout_marginBottom="8dp"/>
+        android:layout_marginTop="50dp"
+        android:text="Select Raw Model" />
 
     <Button
         android:id="@+id/btnSelectRgbModel"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Select RGB Model"
-        android:layout_marginBottom="28dp"/>
+        android:layout_marginTop="55dp"
+        android:text="Select RGB Model" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerView"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"/>
+        android:layout_height="wrap_content"
+        android:layout_marginTop="78dp"
+
+        />
+
+
 </LinearLayout>
