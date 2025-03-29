@@ -72,10 +72,12 @@
             app:destination="@id/image_viewer_fragment" />
         <argument
             android:name="rawModelPath"
-            app:argType="string" />
+            app:argType="string"
+            app:nullable="true" />
         <argument
             android:name="rgbModelPath"
-            app:argType="string" />
+            app:argType="string"
+            app:nullable="true" />
 
     </fragment>
 

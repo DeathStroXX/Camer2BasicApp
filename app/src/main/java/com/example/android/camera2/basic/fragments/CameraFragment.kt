@@ -549,13 +549,7 @@ class CameraFragment : Fragment() {
                 val rawModelPath = args.rawModelPath
                 val rgbModelPath = args.rgbModelPath
 
-                if (rawModelPath.isNotEmpty()) {
-                    loadModel(rawModelPath, isRaw = true)
-                }
 
-                if (rgbModelPath.isNotEmpty()) {
-                    loadModel(rgbModelPath, isRaw = false)
-                }
                 // Handle RAW_SENSOR image format
 //
                 val dngFile = createFile(requireContext(), "dng")
@@ -578,21 +572,36 @@ class CameraFragment : Fragment() {
                     SaveUtils.saveBitmapAsJpeg(bitmap!!, dngFile)
 
 //                   Ensure the Bitmap is not null before running inference
-                    if (bitmap != null) {
+                    if (rgbModelPath != null) {
+                        if (rgbModelPath.isNotEmpty()) {
+                            loadModel(rgbModelPath, isRaw = false)
+                            if (bitmap != null) {
                                 RGB2RGBmodel.runInferenceOnBitmap(bitmap, interpreter2, fileName, filePath)
                                 interpreter2.close()
                                 Log.d("RgbInference", "Inference rgb completed successfully and RGB Interpreter closed.")
-                    } else {
+                            } else {
                                 Log.e("ImageProcessing", "Failed to decode RGB image to Bitmap.")
+                            }
+                        }
                     }
 
+
+
                     // Run inference on the raw image data directly from sensor
+                    if (rawModelPath != null) {
+                        if (rawModelPath.isNotEmpty()) {
+                            loadModel(rawModelPath, isRaw = true)
                     val rawData = Raw2RawModelPipeline.convertRawToFloatArrayFast(rawImage) // to send data to model we first need to convert into float array
                     if (rawData != null) {
                         Raw2RawModelPipeline.runInferenceOnRaw(rawData, interpreter, dngCreator, filePath,fileName)
                         interpreter.close()
                         Log.d("RawInference", "Inference raw completed successfully and RAW Interpreter closed.")
+                    }else {
+                        Log.e("ImageProcessing", "Failed to decode RAW image to Bitmap.")
                     }
+                        }
+                    }
+
 
                     rawImage.close();
                     cont.resume(dngFile)
