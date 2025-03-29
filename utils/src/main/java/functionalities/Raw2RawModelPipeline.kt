@@ -158,12 +158,23 @@ object Raw2RawModelPipeline {
             shortBuffer.get(shortArray)
 
 
+            val floatArray = FloatArray(shortArray.size)
+            // Find the min and max values of the shortArray
+            val minValConvert = shortArray.minOrNull() ?: 0
+            val maxValConvert = shortArray.maxOrNull() ?: 1
+
+// Normalize using the min and max values (similar to (raw_np - raw_np.min()) / (raw_np.max() - raw_np.min()))
+            for (i in shortArray.indices) {
+                floatArray[i] = (shortArray[i].toFloat() - minValConvert) / (maxValConvert - minValConvert)
+            }
+
 
             // Convert to FloatArray & Normalize (0-65535 → 0.0-1.0)
-            val floatArray = FloatArray(shortArray.size)
-            for (i in shortArray.indices) {
-                floatArray[i] = shortArray[i].toFloat() / 65535f
-            }
+//            val floatArray = FloatArray(shortArray.size)
+//            for (i in shortArray.indices) {
+//                floatArray[i] = shortArray[i].toFloat() / 65535f
+//            }
+
 
             // Log the first 100 values or fewer
             val logValues = floatArray.take(20).joinToString(", ")  // Prevents logging too much data
