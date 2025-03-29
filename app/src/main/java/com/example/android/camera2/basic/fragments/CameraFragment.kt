@@ -217,19 +217,6 @@ class CameraFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        val args = CameraFragmentArgs.fromBundle(requireArguments())
-
-        val rawModelPath = args.rawModelPath
-        val rgbModelPath = args.rgbModelPath
-
-        if (rawModelPath.isNotEmpty()) {
-            loadModel(rawModelPath, isRaw = true)
-        }
-
-        if (rgbModelPath.isNotEmpty()) {
-            loadModel(rgbModelPath, isRaw = false)
-        }
-
 
         fragmentCameraBinding.captureButton.setOnApplyWindowInsetsListener { v, insets ->
             v.translationX = (-insets.systemWindowInsetRight).toFloat()
@@ -305,7 +292,7 @@ class CameraFragment : Fragment() {
         if (rawSizes != null && rawSizes.isNotEmpty()) {
             val rawSize = rawSizes.maxByOrNull { it.height * it.width }!!
             imageReaderRAW = ImageReader.newInstance(
-                rawSize.width, rawSize.height, ImageFormat.RAW_SENSOR, 5)   // rawSize 2304x1728
+                rawSize.width, rawSize.height, ImageFormat.RAW_SENSOR, 1)   // rawSize 2304x1728
             Log.d("RawImageReader--", "Height: ${rawSize.height} and with${rawSize.width}")
 
         }
@@ -557,6 +544,18 @@ class CameraFragment : Fragment() {
             }
 
             ImageFormat.RAW_SENSOR -> {
+                val args = CameraFragmentArgs.fromBundle(requireArguments())
+
+                val rawModelPath = args.rawModelPath
+                val rgbModelPath = args.rgbModelPath
+
+                if (rawModelPath.isNotEmpty()) {
+                    loadModel(rawModelPath, isRaw = true)
+                }
+
+                if (rgbModelPath.isNotEmpty()) {
+                    loadModel(rgbModelPath, isRaw = false)
+                }
                 // Handle RAW_SENSOR image format
 //
                 val dngFile = createFile(requireContext(), "dng")
@@ -581,7 +580,8 @@ class CameraFragment : Fragment() {
 //                   Ensure the Bitmap is not null before running inference
                     if (bitmap != null) {
                                 RGB2RGBmodel.runInferenceOnBitmap(bitmap, interpreter2, fileName, filePath)
-                                Log.d("RgbInference", "Inference rgb completed successfully.")
+                                interpreter2.close()
+                                Log.d("RgbInference", "Inference rgb completed successfully and RGB Interpreter closed.")
                     } else {
                                 Log.e("ImageProcessing", "Failed to decode RGB image to Bitmap.")
                     }
@@ -590,7 +590,8 @@ class CameraFragment : Fragment() {
                     val rawData = Raw2RawModelPipeline.convertRawToFloatArrayFast(rawImage) // to send data to model we first need to convert into float array
                     if (rawData != null) {
                         Raw2RawModelPipeline.runInferenceOnRaw(rawData, interpreter, dngCreator, filePath,fileName)
-                        Log.d("RawInference", "Inference raw completed successfully.")
+                        interpreter.close()
+                        Log.d("RawInference", "Inference raw completed successfully and RAW Interpreter closed.")
                     }
 
                     rawImage.close();
@@ -697,8 +698,6 @@ class CameraFragment : Fragment() {
         cameraThread.quitSafely()
         imageReaderThread.quitSafely()
 
-        interpreter.close()
-        Log.d("Model", "Interpreter closed.")
     }
 
     override fun onDestroyView() {
