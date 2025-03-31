@@ -16,6 +16,28 @@ fun runInferenceOnBitmap(bitmap: Bitmap, interpreter: Interpreter, fileName: Str
         // Convert the Bitmap to a FloatArray for inference
         val fileNameProcessed = "${fileName}_Processed.jpeg"
         val inputArray = preprocessBitmapToModelInput(bitmap)
+        val height1 = bitmap.height
+        val width2 = bitmap.width
+        val channels1 = 3  // RGB
+
+// Log the original shape
+        Log.d("Preprocess", "Original Float array shape: [$height1, $width2, $channels1]")
+
+// Convert (h, w, 3) to (1, 3, h, w)
+        val reshapedArray = Array(1) { Array(3) { Array(height1) { FloatArray(width2) } } }
+
+// Populate the reshaped array
+        var index = 0
+        for (c in 0 until channels1) {
+            for (h in 0 until height1) {
+                for (w in 0 until width2) {
+                    reshapedArray[0][c][h][w] = inputArray[index++]
+                }
+            }
+        }
+
+// Log the new shape
+        Log.d("Preprocess", "Reshaped array to shape: [1, 3, $height1, $width2]")
         Log.d("ModelInput", "Input array size: ${inputArray.size}")
 
         // Get the output tensor and its shape
@@ -50,7 +72,7 @@ fun runInferenceOnBitmap(bitmap: Bitmap, interpreter: Interpreter, fileName: Str
 
         // Run inference
         val startTime = System.nanoTime()
-        interpreter.run(arrayOf(inputArray), outputArray)
+        interpreter.run(arrayOf(reshapedArray), outputArray)
         val endTime = System.nanoTime()
         Log.d("Inference", "Inference completed successfully.")
 
@@ -64,14 +86,6 @@ fun runInferenceOnBitmap(bitmap: Bitmap, interpreter: Interpreter, fileName: Str
         var currentIndex = 0
 
         // Iterate over channels, height, and width to correctly reorder the tensor output
-//        for (c in 0 until channels) {
-//            for (h in 0 until imageHeight) {
-//                for (w in 0 until imageWidth) {
-//                    // Convert to unsigned byte and store
-//                    finalUByteArray[currentIndex++] = outputArray[0][(c * imageHeight * imageWidth) + (h * imageWidth) + w].toUByte()
-//                }
-//            }
-//        }
         for (c in 0 until channels) {
             for (h in 0 until imageHeight) {
                 for (w in 0 until imageWidth) {
