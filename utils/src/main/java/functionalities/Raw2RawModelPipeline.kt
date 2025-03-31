@@ -29,32 +29,38 @@ object Raw2RawModelPipeline {
 
 
 
-    fun runInferenceOnRaw(inputArray: FloatArray, interpreter: Interpreter, dngCreator: DngCreator, filePath: String, fileName: String) {
+    fun runInferenceOnRaw(rawData: FloatArray, interpreter: Interpreter, dngCreator: DngCreator, filePath: String, fileName: String, width: Int, height: Int) {
         try {
-
-            //Get input tensor info
+            // Get input tensor info
             val inputTensor = interpreter.getInputTensor(0)
             val inputShape = inputTensor.shape()
             Log.d("InputTensorShape", "Input shape: ${inputShape.joinToString(",")}")
 
-            val inputBufferProvided = inputArray.take(20).joinToString(", ")
+            // Log a portion of the input array
+            val inputBufferProvided = rawData.take(20).joinToString(", ")
             Log.d("Provided Input toModel", "First 20 values of inputArray: [$inputBufferProvided]")
             Log.d("InputTensorShape", "Shape of inputArray to model: ${inputShape.joinToString(",")}")
 
             // Get the output tensor and its shape
             val outputTensor = interpreter.getOutputTensor(0)
             val outputShape = outputTensor.shape()
-            val expectedOutputSize = outputShape.reduce { acc, dim -> acc * dim }
             Log.d("OutputTensorShape", "Expected output shape: ${outputShape.joinToString(" x ")}")
-            Log.d("OutputTensorSize", "Expected total elements: $expectedOutputSize")
+
+            // Ensure output dimensions match the given width and height (and 1 channel or 4 channels)
+            val outputChannels = outputShape[1] // Number of channels (e.g., 1 for RAW, 4 for RGBA)
+            val outputSize = width * height * outputChannels
 
             // Create an appropriately sized output array
-            val outputArray = Array(1) { FloatArray(expectedOutputSize) }
+            val outputArray = Array(1) { FloatArray(outputSize) }
             Log.d("OutputArraySize", "Dimensions: ${outputArray.size} x ${outputArray[0].size}")
+
+            val newOutputShape = intArrayOf(outputShape[0], outputChannels,  height,width)
+            Log.d("OutputShape", "New output shape: ${newOutputShape.joinToString(" x ")}")
+
 
             // Run inference
             val startTime = System.nanoTime()
-            interpreter.run(arrayOf(inputArray), outputArray)
+            interpreter.run(arrayOf(rawData), outputArray)
             val endTime = System.nanoTime()
             Log.d("Inference", "Inference completed successfully.")
 
@@ -81,12 +87,13 @@ object Raw2RawModelPipeline {
             val maxVal = outputArray1D.maxOrNull() ?: 1f
             Log.d("OutputCheck", "Min value: $minVal, Max value: $maxVal")
 
-            saveRawProcessedOutput(outputArray1D, outputShape, dngCreator, filePath,fileName)
+            saveRawProcessedOutput(outputArray1D, newOutputShape, dngCreator, filePath,fileName)
 
         } catch (e: Exception) {
             Log.e("ModelError", "Error during inference: ${e.message}")
         }
     }
+
     private fun saveRawProcessedOutput(
         floatArray: FloatArray,  // Model output (normalized 0.0 - 1.0)
         dimensions: IntArray,     // Expected [1, C, H, W] (C=1 or 4)

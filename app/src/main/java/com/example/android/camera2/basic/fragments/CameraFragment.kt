@@ -576,7 +576,9 @@ class CameraFragment : Fragment() {
                         if (rgbModelPath.isNotEmpty()) {
                             loadModel(rgbModelPath, isRaw = false)
                             if (bitmap != null) {
-                                RGB2RGBmodel.runInferenceOnBitmap(bitmap, interpreter2, fileName, filePath)
+                                val width = bitmap.width
+                                val height = bitmap.height
+                                RGB2RGBmodel.runInferenceOnBitmap(bitmap, interpreter2, fileName, filePath, width, height)
                                 interpreter2.close()
                                 Log.d("RgbInference", "Inference rgb completed successfully and RGB Interpreter closed.")
                             } else {
@@ -592,8 +594,10 @@ class CameraFragment : Fragment() {
                         if (rawModelPath.isNotEmpty()) {
                             loadModel(rawModelPath, isRaw = true)
                     val rawData = Raw2RawModelPipeline.convertRawToFloatArrayFast(rawImage) // to send data to model we first need to convert into float array
-                    if (rawData != null) {
-                        Raw2RawModelPipeline.runInferenceOnRaw(rawData, interpreter, dngCreator, filePath,fileName)
+                            val width = rawImage.width
+                            val height = rawImage.height
+                            if (rawData != null) {
+                        Raw2RawModelPipeline.runInferenceOnRaw(rawData, interpreter, dngCreator, filePath,fileName,width,height)
                         interpreter.close()
                         Log.d("RawInference", "Inference raw completed successfully and RAW Interpreter closed.")
                     }else {
