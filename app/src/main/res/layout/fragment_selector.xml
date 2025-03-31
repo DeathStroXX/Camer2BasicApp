@@ -3,37 +3,65 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="16dp">
+    android:padding="16dp"
+    android:background="#212428">
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="55dp"
         android:gravity="center"
-        android:text="Data Collection APP"
+        android:text="Data Collection App"
         android:textSize="24sp"
-        android:textStyle="bold" />
+        android:textStyle="bold"
+        android:textColor="#75e6da" />
+
+    <CheckBox
+        android:id="@+id/checkBoxEnableRaw"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:minHeight="48dp"
+        android:text="Enable Raw Model Selection"
+        android:textColor="#FFFFFF"
+        android:buttonTint="#FFFFFF"/>
 
     <Button
         android:id="@+id/btnSelectRawModel"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="50dp"
-        android:text="Select Raw Model" />
+        android:layout_marginTop="10dp"
+        android:text="Select Raw Model"
+        android:enabled="false"/>
+
+    <CheckBox
+        android:id="@+id/checkBoxEnableRgb"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:minHeight="48dp"
+        android:text="Enable RGB Model Selection"
+        android:textColor="#FFFFFF"
+        android:buttonTint="#FFFFFF"/>
 
     <Button
         android:id="@+id/btnSelectRgbModel"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="55dp"
-        android:text="Select RGB Model" />
+        android:layout_marginTop="10dp"
+        android:text="Select RGB Model"
+        android:enabled="false"/>
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recyclerView"
+    <RadioGroup
+        android:id="@+id/radioGroupCameras"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="78dp"
+        android:layout_marginTop="20dp"
+        android:textColor="#FFFFFF" />
 
-        />
-
+    <Button
+        android:id="@+id/btnSaveAndContinue"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="20dp"
+        android:text="Save and Continue"/>
 
 </LinearLayout>
