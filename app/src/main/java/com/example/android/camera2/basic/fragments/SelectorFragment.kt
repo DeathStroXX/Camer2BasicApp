@@ -1,23 +1,8 @@
-/*
- * Copyright 2020 The Android Open Source Project
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package com.example.android.camera2.basic.fragments
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.Color
 import android.graphics.ImageFormat
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
@@ -29,14 +14,10 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
-import android.widget.TextView
+import android.widget.*
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.Fragment
 import androidx.navigation.Navigation
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
-import com.example.android.camera.utils.GenericListAdapter
 import com.example.android.camera2.basic.R
 import java.io.File
 
@@ -44,6 +25,15 @@ class SelectorFragment : Fragment() {
 
     private var rawModelPath: Uri? = null
     private var rgbModelPath: Uri? = null
+    private var selectedCameraId: String? = null
+    private var selectedCameraFormat: Int? = null
+
+    private lateinit var checkBoxRaw: CheckBox
+    private lateinit var checkBoxRgb: CheckBox
+    private lateinit var btnSelectRaw: Button
+    private lateinit var btnSelectRgb: Button
+    private lateinit var btnSaveAndContinue: Button
+    private lateinit var radioGroupCameras: RadioGroup
 
     private val selectRawModelLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let {
@@ -56,6 +46,7 @@ class SelectorFragment : Fragment() {
             rgbModelPath = getFilePathFromUri(requireContext(), it)?.let { path -> Uri.parse(path) }
         }
     }
+
     private fun getFilePathFromUri(context: Context, uri: Uri): String? {
         val cursor = context.contentResolver.query(uri, null, null, null, null)
         cursor?.use {
@@ -76,13 +67,10 @@ class SelectorFragment : Fragment() {
         return null
     }
 
-
-
-
     override fun onCreateView(
-            inflater: LayoutInflater,
-            container: ViewGroup?,
-            savedInstanceState: Bundle?
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
     ): View? {
         return inflater.inflate(R.layout.fragment_selector, container, false)
     }
@@ -90,97 +78,103 @@ class SelectorFragment : Fragment() {
     @SuppressLint("MissingPermission")
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        val recyclerView = view.findViewById<RecyclerView>(R.id.recyclerView)
-        recyclerView.layoutManager = LinearLayoutManager(requireContext())
+
+        checkBoxRaw = view.findViewById(R.id.checkBoxEnableRaw)
+        checkBoxRgb = view.findViewById(R.id.checkBoxEnableRgb)
+        btnSelectRaw = view.findViewById(R.id.btnSelectRawModel)
+        btnSelectRgb = view.findViewById(R.id.btnSelectRgbModel)
+        btnSaveAndContinue = view.findViewById(R.id.btnSaveAndContinue)
+        radioGroupCameras = view.findViewById(R.id.radioGroupCameras)
 
         val cameraManager = requireContext().getSystemService(Context.CAMERA_SERVICE) as CameraManager
         val cameraList = enumerateCameras(cameraManager)
 
-        val layoutId = android.R.layout.simple_list_item_1
-        recyclerView.adapter = GenericListAdapter(cameraList, itemLayoutId = layoutId) { view, item, _ ->
-            view.findViewById<TextView>(android.R.id.text1).text = item.title
-            view.setOnClickListener {
-                val action = SelectorFragmentDirections.actionSelectorToCamera(
-                    item.cameraId,
-                    item.format,
-                    rawModelPath?.toString() ?: "",
-                    rgbModelPath?.toString() ?: ""
-                )
-                Navigation.findNavController(requireActivity(), R.id.fragment_container).navigate(action)
-            }
-
+        // Populate the RadioGroup with cameras
+        cameraList.forEach { item ->
+            val radioButton = RadioButton(requireContext())
+            radioButton.text = item.title
+            radioButton.setTextColor(Color.WHITE)
+            radioButton.tag = Pair(item.cameraId, item.format)
+            radioGroupCameras.addView(radioButton)
         }
-        try {
-            view.findViewById<Button>(R.id.btnSelectRawModel).setOnClickListener {
-                selectRawModelLauncher.launch("application/octet-stream") // Filter for .tflite files
+
+        checkBoxRaw.setOnCheckedChangeListener { _, isChecked ->
+            btnSelectRaw.isEnabled = isChecked
+        }
+
+        checkBoxRgb.setOnCheckedChangeListener { _, isChecked ->
+            btnSelectRgb.isEnabled = isChecked
+        }
+
+        btnSelectRaw.setOnClickListener {
+            selectRawModelLauncher.launch("application/octet-stream")
+        }
+
+        btnSelectRgb.setOnClickListener {
+            selectRgbModelLauncher.launch("application/octet-stream")
+        }
+
+        btnSaveAndContinue.setOnClickListener {
+            val selectedRadioButton = radioGroupCameras.findViewById<RadioButton>(radioGroupCameras.checkedRadioButtonId)
+            val selectedCameraData = selectedRadioButton?.tag as? Pair<String, Int>
+
+            if (selectedCameraData == null) {
+                Toast.makeText(requireContext(), "Please select a camera", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
             }
 
-            view.findViewById<Button>(R.id.btnSelectRgbModel).setOnClickListener {
-                selectRgbModelLauncher.launch("application/octet-stream") // Filter for .tflite files
+            selectedCameraId = selectedCameraData.first
+            selectedCameraFormat = selectedCameraData.second
+
+            if (checkBoxRaw.isChecked && rawModelPath == null) {
+                Toast.makeText(requireContext(), "Please select a Raw Model", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
             }
-        } catch (e: Exception) {
-            Log.e("Model--", "Failed to initialize interpreter: ${e.message}")
+
+            if (checkBoxRgb.isChecked && rgbModelPath == null) {
+                Toast.makeText(requireContext(), "Please select an RGB Model", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            val action = SelectorFragmentDirections.actionSelectorToCamera(
+                selectedCameraId!!,
+                selectedCameraFormat!!,
+                rawModelPath?.toString() ?: "",
+                rgbModelPath?.toString() ?: ""
+            )
+            Navigation.findNavController(requireActivity(), R.id.fragment_container).navigate(action)
         }
     }
 
     companion object {
-
-        /** Helper class used as a data holder for each selectable camera format item */
         private data class FormatItem(val title: String, val cameraId: String, val format: Int)
 
-        /** Helper function used to convert a lens orientation enum into a human-readable string */
-        private fun lensOrientationString(value: Int) = when(value) {
-            CameraCharacteristics.LENS_FACING_BACK -> "Back"
-            CameraCharacteristics.LENS_FACING_FRONT -> "Front"
-            CameraCharacteristics.LENS_FACING_EXTERNAL -> "External"
-            else -> "Unknown"
-        }
-
-        /** Helper function used to list all compatible cameras and supported pixel formats */
-        @SuppressLint("InlinedApi")
         private fun enumerateCameras(cameraManager: CameraManager): List<FormatItem> {
-            val availableCameras: MutableList<FormatItem> = mutableListOf()
+            val availableCameras = mutableListOf<FormatItem>()
 
-            // Get list of all compatible cameras
-            val cameraIds = cameraManager.cameraIdList.filter {
-                val characteristics = cameraManager.getCameraCharacteristics(it)
-                val capabilities = characteristics.get(
-                        CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES)
-                capabilities?.contains(
-                        CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_BACKWARD_COMPATIBLE) ?: false
-            }
-
-
-            // Iterate over the list of cameras and return all the compatible ones
-            cameraIds.forEach { id ->
+            cameraManager.cameraIdList.forEach { id ->
                 val characteristics = cameraManager.getCameraCharacteristics(id)
-                val orientation = lensOrientationString(
-                        characteristics.get(CameraCharacteristics.LENS_FACING)!!)
-
-                // Query the available capabilities and output formats
-                val capabilities = characteristics.get(
-                        CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES)!!
-                val outputFormats = characteristics.get(
-                        CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)!!.outputFormats
-
-                // All cameras *must* support JPEG output so we don't need to check characteristics
-                availableCameras.add(FormatItem(
-                        "$orientation JPEG ($id)", id, ImageFormat.JPEG))
-
-                // Return cameras that support RAW capability
-                if (capabilities.contains(
-                                CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_RAW) &&
-                        outputFormats.contains(ImageFormat.RAW_SENSOR)) {
-                    availableCameras.add(FormatItem(
-                            "$orientation RAW ($id)", id, ImageFormat.RAW_SENSOR))
+                val lensFacing = characteristics.get(CameraCharacteristics.LENS_FACING) ?: return@forEach
+                val orientation = when (lensFacing) {
+                    CameraCharacteristics.LENS_FACING_BACK -> "Back"
+                    CameraCharacteristics.LENS_FACING_FRONT -> "Front"
+                    else -> "External"
                 }
 
-                // Return cameras that support JPEG DEPTH capability
-                if (capabilities.contains(
-                            CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_DEPTH_OUTPUT) &&
-                        outputFormats.contains(ImageFormat.DEPTH_JPEG)) {
-                    availableCameras.add(FormatItem(
-                            "$orientation DEPTH ($id)", id, ImageFormat.DEPTH_JPEG))
+                val outputFormats = characteristics.get(
+                    CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP
+                )?.outputFormats ?: return@forEach
+
+                // Add JPEG format (Always available)
+                availableCameras.add(FormatItem("$orientation JPEG", id, ImageFormat.JPEG))
+
+                // Add RAW format if supported
+                val capabilities = characteristics.get(
+                    CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES
+                ) ?: intArrayOf()
+                if (capabilities.contains(CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_RAW) &&
+                    outputFormats.contains(ImageFormat.RAW_SENSOR)) {
+                    availableCameras.add(FormatItem("$orientation RAW", id, ImageFormat.RAW_SENSOR))
                 }
             }
 
