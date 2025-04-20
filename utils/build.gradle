@@ -21,7 +21,7 @@ android {
     compileSdkVersion 29
 
     defaultConfig {
-        minSdkVersion 21
+        minSdkVersion 24
         //noinspection ExpiredTargetSdkVersion
         targetSdkVersion 29
 
@@ -77,4 +77,6 @@ dependencies {
     //Neural Network dependencies
     implementation 'org.tensorflow:tensorflow-lite:2.13.0'  // Use the latest stable version
     implementation 'org.tensorflow:tensorflow-lite-gpu:2.13.0'  // Optional: GPU acceleration
+
+    implementation "org.pytorch:executorch-android:0.6.0-rc1"
 }

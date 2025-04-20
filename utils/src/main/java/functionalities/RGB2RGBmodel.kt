@@ -20,41 +20,77 @@ object RGB2RGBmodel {
             // Convert the Bitmap to a FloatArray for inference
             val fileNameProcessed = "${fileName}_Processed.jpeg"
             val inputArray = preprocessBitmapToModelInput(bitmap)
+//            val inputArray = arrayOf(preprocessBitmapToModelInput(bitmap)) // floatArrayOf size 3
+//            val inputBuffer = ByteBuffer.allocateDirect(1 * 3 * height * width * 4) // 4 bytes per float
+//                .order(ByteOrder.nativeOrder())
+//
+//            val pixel = bitmap.getPixel(0, 0)
+//            val r = (pixel shr 16 and 0xFF) / 255.0f
+//            val g = (pixel shr 8 and 0xFF) / 255.0f
+//            val b = (pixel and 0xFF) / 255.0f
+//
+//            inputBuffer.putFloat(r)
+//            inputBuffer.putFloat(g)
+//            inputBuffer.putFloat(b)
+
+
+
             Log.d("ModelInput", "Input array size: ${inputArray.size}")
+            val inputTensor = interpreter.getInputTensor(0)
+            val inputShape = inputTensor.shape()
+            Log.d("InputTensorShape", "Input shape: ${inputShape.joinToString(",")}")
 
             // Get the output tensor and its shape
             val outputTensor = interpreter.getOutputTensor(0)
             val outputShape = outputTensor.shape() // Should be [1, 3, 3000, 4000]
+            val outputDataType = outputTensor.dataType()
+
+            Log.d("TFLiteOutput", "Output shape: ${outputShape.joinToString(", ")}")
+            Log.d("TFLiteOutput", "Output data type: $outputDataType")
 
 //        if (outputShape.size != 4) {
 //            Log.e("TensorError", "Unexpected tensor shape: ${outputShape.joinToString(" x ")}")
 //            return
 //        }
 
-            outputShape[0]=1
-            outputShape[1]=3
+//            outputShape[0]=1
+//            outputShape[1]=3
 //        outputShape[2]=height
 //        outputShape[3]=width
 
             // Extract dimensions dynamically
             val batchSize = outputShape[0] // Usually 1
             val channels = outputShape[1]  // 3 (RGB)
-            val imageHeight = height  //
-            val imageWidth = width   //
+            val imageHeight = 3056  //
+            val imageWidth = 4064   //
 
-            Log.d("OutputTensorShape", "Extracted Shape: Batch=$batchSize, Channels=$channels, Height=$imageHeight, Width=$imageWidth")
+//            Log.d("OutputTensorShape", "Extracted Shape: Batch=$batchSize, Channels=$channels, Height=$imageHeight, Width=$imageWidth")
 
             // Calculate the total number of pixels
-            val outputSize = imageHeight * imageWidth * channels
+//            val outputSize = imageHeight * imageWidth * channels
+            val outputSize=37258752
             Log.d("OutputTensorSize", "Total pixels: $outputSize")
+            Log.d("shape", "Total pixels: ${outputShape.joinToString(", ")}")
+            val outputSize1 = outputShape.reduce { acc, i -> acc * i }
 
             // Create an output array
-            val outputArray = Array(1) { ByteArray(outputSize) }
+//            val outputArray = Array(1) { ByteArray(outputSize) }
+            val outputArray = Array(1) { ByteArray(37258752) }
+
+
             Log.d("OutputArraySize", "Dimensions: ${outputArray.size} x ${outputArray[0].size}")
+
+
+            val outputBuffer = ByteBuffer.allocateDirect(outputSize1)
+            outputBuffer.order(ByteOrder.nativeOrder())
 
             // Run inference
             val startTime = System.nanoTime()
             interpreter.run(arrayOf(inputArray), outputArray)
+//            interpreter.run(inputBuffer, outputBuffer)
+//            interpreter.run(inputArray, outputArray)
+
+
             val endTime = System.nanoTime()
             Log.d("Inference", "Inference completed successfully.")
 
@@ -64,22 +100,36 @@ object RGB2RGBmodel {
             checkModelExecution(interpreter, null)
 
             // Flatten the 4D tensor into a UByteArray
-            val finalUByteArray = UByteArray(outputSize)
-            var currentIndex = 0
+//            val finalUByteArray = UByteArray(37258752)
+//            outputBuffer.rewind()  // Always rewind before reading
+            // Read first N bytes from the buffer
+//            val numToPrint = 20
+//            val tempBytes = ByteArray(numToPrint)
+//            outputBuffer.get(tempBytes)
+//
+//            val uBytes = tempBytes.map { it.toUByte() }
+//
+//            Log.d("ModelOutputSample", "First $numToPrint values: $uBytes")
+//            val fbyteArray = ByteArray(outputSize)
+//            outputBuffer.get(fbyteArray)
+//
+//            val finalUByteArray = UByteArray(outputSize) { i -> fbyteArray[i].toUByte() }
 
-            // Iterate over channels, height, and width to correctly reorder the tensor output
-            for (c in 0 until channels) {
-                for (h in 0 until imageHeight) {
-                    for (w in 0 until imageWidth) {
-                        // Convert to unsigned byte and store
-                        finalUByteArray[currentIndex++] = outputArray[0][(c * imageHeight * imageWidth) + (h * imageWidth) + w].toUByte()
-                    }
-                }
-            }
-
-            // Log first 100 values to verify data integrity
-            val logValues = finalUByteArray.take(100).joinToString(", ")
-            Log.d("OutputArray1DValues", "First 100 values: [$logValues]")
+//            var currentIndex = 0
+//
+//            // Iterate over channels, height, and width to correctly reorder the tensor output
+//            for (c in 0 until channels) {
+//                for (h in 0 until imageHeight) {
+//                    for (w in 0 until imageWidth) {
+//                        // Convert to unsigned byte and store
+//                        finalUByteArray[currentIndex++] = outputArray[0][(c * imageHeight * imageWidth) + (h * imageWidth) + w].toUByte()
+//                    }
+//                }
+//            }
+//
+//            // Log first 100 values to verify data integrity
+//            val logValues = finalUByteArray.take(100).joinToString(", ")
+//            Log.d("OutputArray1DValues", "First 100 values: [$logValues]")
 
             // Save directly to file in chunks (to avoid OutOfMemoryError)
             val outputFile = File(filePath, fileNameProcessed)  // ✅ Uses provided filename

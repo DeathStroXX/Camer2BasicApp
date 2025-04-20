@@ -19,13 +19,17 @@
 package com.example.android.camera2.basic.fragments
 
 
+//import android.hardware.HardwareBuffer
+
+//import androidx.annotation.RequiresApi
+//import androidx.paging.map
+
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.ImageFormat
-//import android.hardware.HardwareBuffer
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraDevice
@@ -38,16 +42,15 @@ import android.media.Image
 import android.media.ImageReader
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.os.Handler
 import android.os.HandlerThread
 import android.util.Log
-
 import android.view.LayoutInflater
 import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.View
 import android.view.ViewGroup
-//import androidx.annotation.RequiresApi
 import androidx.core.graphics.drawable.toDrawable
 import androidx.exifinterface.media.ExifInterface
 import androidx.fragment.app.Fragment
@@ -56,20 +59,21 @@ import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
 import androidx.navigation.Navigation
 import androidx.navigation.fragment.navArgs
-//import androidx.paging.map
-
-import android.content.ContentValues
-import android.net.Uri
+import com.example.android.camera.utils.OrientationLiveData
 import com.example.android.camera.utils.computeExifOrientation
 import com.example.android.camera.utils.getPreviewOutputSize
-import com.example.android.camera.utils.OrientationLiveData
 import com.example.android.camera2.basic.CameraActivity
 import com.example.android.camera2.basic.R
 import com.example.android.camera2.basic.databinding.FragmentCameraBinding
+import functionalities.ModelUtils
+import functionalities.RGB2RGBmodel
+import functionalities.Raw2RawModelPipeline
+import functionalities.SaveUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import org.tensorflow.lite.Interpreter
+import org.tensorflow.lite.gpu.GpuDelegate
 import java.io.Closeable
 import java.io.File
 import java.io.FileInputStream
@@ -77,31 +81,27 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.nio.ShortBuffer
 import java.text.SimpleDateFormat
-import java.util.concurrent.ArrayBlockingQueue
-import java.util.concurrent.TimeoutException
 import java.util.Date
 import java.util.Locale
-import kotlin.RuntimeException
-import kotlin.collections.toUByteArray
+import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.TimeoutException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
-import kotlin.ranges.coerceIn
-import android.os.Environment
-import android.provider.MediaStore
-import android.util.Size
-import android.widget.Button
-import androidx.activity.result.contract.ActivityResultContracts
-import functionalities.RGB2RGBmodel
-import functionalities.SaveUtils
-import functionalities.ModelUtils
-import functionalities.Raw2RawModelPipeline
-import kotlinx.coroutines.withContext
+import android.content.res.AssetFileDescriptor;
+import java.nio.MappedByteBuffer
+import java.nio.channels.FileChannel
+import org.pytorch.executorch.Module
+import org.pytorch.executorch.EValue
+import org.pytorch.executorch.Tensor
+import functionalities.RGB2RGBExecuModel
+import functionalities.RAW2RAWExecuModel
+import functionalities.ExecuTorch
 
 
 class CameraFragment : Fragment() {
+
 
     /** Android ViewBinding */
     private var _fragmentCameraBinding: FragmentCameraBinding? = null
@@ -136,9 +136,31 @@ class CameraFragment : Fragment() {
     // For DEPTH\
     private lateinit var imageReaderDepth: ImageReader
     //For model inferences
-    private lateinit var interpreter: Interpreter
-    private lateinit var interpreter2: Interpreter
+//    private lateinit var interpreter: Interpreter
+//    private lateinit var interpreter2: Interpreter
+    private lateinit var interpreter: Module
+    private lateinit var interpreter2: Module
 
+    fun createGpuInterpreter(context: Context, modelPath: String): Interpreter {
+        val modelFile = loadModelFilelocal(context, modelPath)
+
+        // Create GPU delegate
+        val gpuDelegate = GpuDelegate()
+        val options = Interpreter.Options().apply {
+            addDelegate(gpuDelegate) // Force GPU execution
+        }
+
+        // Create interpreter with GPU delegate
+        return Interpreter(modelFile, options)
+    }
+
+    // Helper function to load model from assets
+    private fun loadModelFilelocal(context: Context, modelPath: String): MappedByteBuffer {
+        val fileDescriptor: AssetFileDescriptor = context.assets.openFd(modelPath)
+        val inputStream = FileInputStream(fileDescriptor.fileDescriptor)
+        val fileChannel = inputStream.channel
+        return fileChannel.map(FileChannel.MapMode.READ_ONLY, fileDescriptor.startOffset, fileDescriptor.declaredLength)
+    }
 
 
     /** [HandlerThread] where all camera operations run */
@@ -191,16 +213,59 @@ class CameraFragment : Fragment() {
             }
 
             if (isRaw) {
-                interpreter = Interpreter(buffer)
+                interpreter = Module.load(file.absolutePath)
+//                interpreter = Interpreter(buffer)
                 Log.d("Model---", "Interpreter initialized for RAW successfully from $filePath")
             } else {
-                interpreter2 = Interpreter(buffer)
+                // Create GPU delegate
+//                val gpuDelegate = GpuDelegate()
+//                val options = Interpreter.Options().apply {
+//                    addDelegate(gpuDelegate) // Enable GPU acceleration
+//                }
+                Log.d("ExecuTorchModel", "Loading model from: ${file.absolutePath}")
+                interpreter2 = Module.load(file.absolutePath)
+                Log.d("ExecuTorchModel", "Model loaded successfully")
+
+//                 Initialize interpreter with GPU delegate
+//                interpreter2 = Interpreter(buffer, options)
+//                interpreter2 = Interpreter(buffer)
+
+                Log.d("Model---", "Interpreter initialized with GPU successfully.")
                 Log.d("Model---", "Interpreter initialized for RGB successfully from $filePath")
             }
         } catch (e: Exception) {
             Log.e("Model--", "Failed to initialize interpreter: ${e.message}")
         }
     }
+
+
+//    private fun loadModel(filePath: String, isRaw: Boolean) {
+//        try {
+//            val file = File(filePath)
+//            if (!file.exists()) {
+//                Log.e("Model--", "Model file does not exist at path: $filePath")
+//                return
+//            }
+//
+//            val modelFile = file.readBytes()
+//            val bufferFile = File.createTempFile("temp_model", ".ptl", context?.cacheDir ?: return).apply {
+//                deleteOnExit()
+//                FileOutputStream(this).use { it.write(modelFile) }
+//            }
+//
+//
+//            if (isRaw) {
+//                interpreter = Module.load(bufferFile.absolutePath)
+//                Log.d("Model---", "Interpreter initialized for RAW successfully from $filePath")
+//            } else {
+//                interpreter2 = Module.load(bufferFile.absolutePath)
+//                Log.d("Model---", "Interpreter initialized for RGB successfully from $filePath")
+//            }
+//
+//        } catch (e: Exception) {
+//            Log.e("Model--", "Failed to initialize interpreter: ${e.message}")
+//        }
+//    }
 
 
 
@@ -526,6 +591,7 @@ class CameraFragment : Fragment() {
     }
 
 
+    @SuppressLint("SuspiciousIndentation")
     private suspend fun saveResult(result: CombinedCaptureResult): File = suspendCoroutine { cont ->
         when (result.format) {
             ImageFormat.JPEG, ImageFormat.DEPTH_JPEG -> {
@@ -575,15 +641,20 @@ class CameraFragment : Fragment() {
                     if (rgbModelPath != null) {
                         if (rgbModelPath.isNotEmpty()) {
                             loadModel(rgbModelPath, isRaw = false)
+//                            val interpreter2 = createGpuInterpreter(requireContext(), "aaaa_simple_cnn_50.tflite")
                             if (bitmap != null) {
                                 val width = bitmap.width
                                 val height = bitmap.height
-                                RGB2RGBmodel.runInferenceOnBitmap(bitmap, interpreter2, fileName, filePath, width, height)
-                                interpreter2.close()
-                                Log.d("RgbInference", "Inference rgb completed successfully and RGB Interpreter closed.")
+//                                val execuModel = ExecuTorch.loadExceuTorchModel1(requireContext(), "Naveenrgbenhancementmodel.pte")
+
+                                    RGB2RGBExecuModel.runInferenceOnBitmap(bitmap, interpreter2,  filePath,fileName,width,height)
+
+                                interpreter2.destroy()
+                                Log.d("CameraFragment", "Inference rgb completed successfully and RGB Exe closed.")
                             } else {
-                                Log.e("ImageProcessing", "Failed to decode RGB image to Bitmap.")
+                                Log.e("CameraFragment", "Failed to decode RGB image to Bitmap.")
                             }
+
                         }
                     }
 
@@ -597,8 +668,9 @@ class CameraFragment : Fragment() {
                             val width = rawImage.width
                             val height = rawImage.height
                             if (rawData != null) {
-                        Raw2RawModelPipeline.runInferenceOnRaw(rawData, interpreter, dngCreator, filePath,fileName,width,height)
-                        interpreter.close()
+                                RAW2RAWExecuModel.runInferenceOnRaw(rawImage, interpreter, dngCreator, filePath,fileName)
+//                        Raw2RawModelPipeline.runInferenceOnRaw(rawImage, interpreter, dngCreator, filePath,fileName,width,height,bitmap)
+                        interpreter.destroy()
                         Log.d("RawInference", "Inference raw completed successfully and RAW Interpreter closed.")
                     }else {
                         Log.e("ImageProcessing", "Failed to decode RAW image to Bitmap.")

@@ -24,7 +24,7 @@ android {
     defaultConfig {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         applicationId "com.android.example.camera2.basic"
-        minSdkVersion 21
+        minSdkVersion 24
         targetSdkVersion 29
         versionCode 1
         versionName "1.0.0"
@@ -93,4 +93,6 @@ dependencies {
 
     //Neural Network dependencies
     implementation 'org.tensorflow:tensorflow-lite:2.13.0'
+    implementation 'org.tensorflow:tensorflow-lite-gpu:2.13.0'
+    implementation "org.pytorch:executorch-android:0.6.0-rc1"
 }
