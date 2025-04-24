@@ -59,17 +59,36 @@ object RAW2RAWExecuModel {
             val width = outputShape[3].toInt()
             val outputSize = width * height * outputChannels
 
-            val outputData: ByteArray = outputTensor.dataAsUnsignedByteArray
-            Log.d("runInferenceOnRaw", "Flattened output array 1D size: ${outputData.size}")
-            val logValues = outputData.take(20).joinToString(", ")
-            Log.d("runInferenceOnRaw", "First 20 values of outputArray1D: [$logValues]")
-
-            val minVal = outputData.minOrNull() ?: 0f
-            val maxVal = outputData.maxOrNull() ?: 1f
-            Log.d("OutputCheck", "Min value: $minVal, Max value: $maxVal")
+//            val outputData: ByteArray = outputTensor.dataAsUnsignedByteArray
+//            Log.d("runInferenceOnRaw", "Flattened output array 1D size: ${outputData.size}")
+//            val logValues = outputData.take(20).joinToString(", ")
+//            Log.d("runInferenceOnRaw", "First 20 values of outputArray1D: [$logValues]")
+//
+//            val minVal = outputData.minOrNull() ?: 0f
+//            val maxVal = outputData.maxOrNull() ?: 1f
+//            Log.d("OutputCheck", "Min value: $minVal, Max value: $maxVal")
 
             val newOutputShape = intArrayOf(1, outputChannels, height, width)
-            saveRawProcessedOutput(outputData, newOutputShape, dngCreator, filePath, fileName)
+            //  Conditional logic based on output channels
+            when (outputChannels) {
+                3 -> {
+                    Log.d("OutputType", "Detected RGB output")
+//                    SaveUtils.saveRgbIspProcessedOutput(outputData, newOutputShape, dngCreator, filePath, fileName)
+                }
+                4 -> {
+                    Log.d("OutputType", "Detected RGBA output")
+                    save4ChRawProcessedOutput(outputTensor, newOutputShape, dngCreator, filePath, "$fileName-rgba")
+                }
+                1 -> {
+                    Log.d("OutputType", "Detected Grayscale output")
+                    saveRawProcessedOutput(outputTensor, newOutputShape, dngCreator, filePath, fileName)
+                }
+                else -> {
+                    Log.w("OutputType", "Unexpected number of channels: $outputChannels")
+
+                }
+            }
+//            saveRawProcessedOutput(outputData, newOutputShape, dngCreator, filePath, fileName)
 
 //            saveRawProcessedOutput(outputArray1D, newOutputShape, dngCreator, filePath,fileName)
 
@@ -79,39 +98,148 @@ object RAW2RAWExecuModel {
     }
 
     private fun saveRawProcessedOutput(
-        byteArray: ByteArray,         // Model output in Byte format (0-255)
+        output: Tensor,         // Model output in Byte format (0-255)
         dimensions: IntArray,         // Expected [1, C, H, W] (C=1 or 4)
         dngCreator: DngCreator,
         filePathParent: String,
         fileNameParent: String,
     ) {
+//        try {
+//            val floatArray1D = output.dataAsFloatArray
+//            val channels = dimensions[1]  // Number of channels (1 for RAW, 4 for RGBA)
+//            val height = dimensions[2]    // Image height
+//            val width = dimensions[3]     // Image width
+//            val outputSize = width * height * channels
+//
+//
+//
+//            val minVal = floatArray1D.minOrNull()
+//            val maxVal = floatArray1D.maxOrNull()
+//            Log.d("saveRawProcessedOutpute", "Float value range: min=$minVal, max=$maxVal")
+//            val range = (maxVal?.minus(minVal!!)).takeIf { it!! > 0f } ?: 1f
+//
+//            Log.d("saveRawProcessedOutput", "Image Dimensions: Width=$width, Height=$height, Channels=$channels")
+//
+//
+//            val logValues = floatArray1D.take(20).joinToString(", ")
+//            Log.d("saveRawProcessedOutput", "First 20 values flattened output array: [$logValues]")
+//
+//            Log.d("saveRawProcessedOutput", "Flattened output array size: ${floatArray1D.size}")
+////            val byteBuffer = ByteBuffer.allocate(floatArray.size * 2).order(ByteOrder.LITTLE_ENDIAN)
+////            for (value in floatArray) {
+////                val scaledValue = (value * 65535).toInt().coerceIn(0, 65535)  // Normalize 0.0 - 1.0 to 0 - 65535
+////                byteBuffer.putShort(scaledValue.toShort())
+////            }
+//            val outputArray = Array(1) { FloatArray(outputSize) }
+//            for (i in 0 until outputSize) {
+//                outputArray[0][i] = floatArray1D[i]
+//            }
+//
+//// Step 2: Flatten it using your previous method
+//            val outputArray1D: FloatArray = if (outputArray.isNotEmpty()) {
+//                val innerArray = outputArray[0]
+//                FloatArray(innerArray.size) { i -> innerArray[i] }
+//            } else {
+//                FloatArray(0)
+//            }
+//
+//            val byteBuffer = ByteBuffer.allocate(outputArray1D.size * 2).order(ByteOrder.LITTLE_ENDIAN)
+//            for (value in outputArray1D) {
+//                val scaled = (value * 65535f).toInt().coerceIn(0, 65535)
+//                byteBuffer.putShort(scaled.toShort())
+//            }
+//
+////            val byteBuffer = ByteBuffer.allocate(reshaped.size * 2).order(ByteOrder.LITTLE_ENDIAN)
+////            for (value in reshaped) {
+////                val normalized = (value - minVal!!) / range
+////                val scaledValue = (normalized * 65535).toInt().coerceIn(0, 65535)
+//////                val scaledValue = (value * 65535).toInt().coerceIn(0, 65535)  // Normalize 0.0 - 1.0 to 0 - 65535
+////                byteBuffer.putShort(scaledValue.toShort())
+////            }
+//
+//            // Convert ByteArray (0-255) to 16-bit buffer (0-65535) for DNG
+//            Log.d("DNG-Save", "Converting byte array to 16-bit RAW buffer...")
+////            val byteBuffer = ByteBuffer.allocate(byteArray.size * 2).order(ByteOrder.LITTLE_ENDIAN)
+//
+//            Log.d("DNG-Save", "ByteArray conversion completed. Buffer size: ${byteBuffer.capacity()} bytes")
+//
+//            // Save to DNG
+//            SaveUtils.saveProcessedDngFile(dngCreator, byteBuffer, filePathParent, fileNameParent, width, height)
+//
+//        } catch (e: Exception) {
+//            Log.e("DNG-Save", "Error saving DNG file: ${e.message}")
+//            e.printStackTrace()
+//        }
         try {
-            val channels = dimensions[1]  // Number of channels (1 for RAW, 4 for RGBA)
-            val height = dimensions[2]    // Image height
-            val width = dimensions[3]     // Image width
+            val floatArray1D = output.dataAsFloatArray
+            val channels = dimensions[1] // Number of channels (1 for RAW)
+            val height = dimensions[2]   // Image height
+            val width = dimensions[3]    // Image width
+            val outputSize = width * height * channels
 
-            Log.d("DNG-Save", "Initializing DNG Save Process with ByteArray")
-            Log.d("DNG-Save", "Image Dimensions: Width=$width, Height=$height, Channels=$channels")
+            // Log tensor stats for debugging
+            val minVal = floatArray1D.minOrNull() ?: 0f
+            val maxVal = floatArray1D.maxOrNull() ?: 1f
+            Log.d("saveRawProcessedOutput", "Float value range: min=$minVal, max=$maxVal")
+            Log.d("saveRawProcessedOutput", "Image Dimensions: Width=$width, Height=$height, Channels=$channels")
+            Log.d("saveRawProcessedOutput", "Flattened output array size: ${floatArray1D.size}")
+            Log.d("saveRawProcessedOutput", "First 20 values: [${floatArray1D.take(20).joinToString(", ")}]")
 
-            // Convert ByteArray (0-255) to 16-bit buffer (0-65535) for DNG
-            Log.d("DNG-Save", "Converting byte array to 16-bit RAW buffer...")
-            val byteBuffer = ByteBuffer.allocate(byteArray.size * 2).order(ByteOrder.LITTLE_ENDIAN)
-
-            for (value in byteArray) {
-                val normalizedValue = (value.toInt() and 0xFF) // Ensure unsigned
-                val scaledValue = (normalizedValue / 255.0 * 65535.0).toInt().coerceIn(0, 65535)
-                byteBuffer.putShort(scaledValue.toShort())
+            // Verify array size matches expected dimensions
+            if (floatArray1D.size != outputSize) {
+                Log.e("saveRawProcessedOutput", "Size mismatch: Expected $outputSize, got ${floatArray1D.size}")
+                return
             }
 
-            val processedBuffer = byteBuffer
-            Log.d("DNG-Save", "ByteArray conversion completed. Buffer size: ${processedBuffer.capacity()} bytes")
+            // Optional: Normalize values if the range is too narrow or skewed
+            val range = if (maxVal - minVal > 0f) maxVal - minVal else 1f
+            val normalizedArray = if (minVal < 0f || maxVal > 1f || range < 0.1f) {
+                Log.d("saveRawProcessedOutput", "Normalizing values to [0, 1]")
+                FloatArray(floatArray1D.size) { i ->
+                    ((floatArray1D[i] - minVal) / range).coerceIn(0f, 1f)
+                }
+            } else {
+                floatArray1D
+            }
+
+            val upscaledShortArray = ShortArray(normalizedArray.size)
+            var minScaled = Int.MAX_VALUE
+            var maxScaled = Int.MIN_VALUE
+
+            for (i in normalizedArray.indices) {
+                val scaled = (normalizedArray[i] * 65535f).toInt().coerceIn(0, 65535)
+                upscaledShortArray[i] = scaled.toShort()
+                if (scaled < minScaled) minScaled = scaled
+                if (scaled > maxScaled) maxScaled = scaled
+            }
+
+// Log value range
+            Log.d("DNG-Upscale", "Scaled value range: min=$minScaled, max=$maxScaled")
+
+// Log first 20 values
+            val preview = upscaledShortArray.take(20).joinToString(", ")
+            Log.d("DNG-Upscale", "First 20 upscaled short values: [$preview]")
+
+// Prepare ByteBuffer
+            val byteBuffer = ByteBuffer.allocate(upscaledShortArray.size * 2).order(ByteOrder.LITTLE_ENDIAN)
+            upscaledShortArray.forEach { byteBuffer.putShort(it) }
+
+            Log.d("DNG-Upscale", "ByteBuffer filled with ${byteBuffer.capacity()} bytes.")
+
+            // Create ByteBuffer for 16-bit RAW data
+//            val byteBuffer = ByteBuffer.allocate(outputSize * 2).order(ByteOrder.LITTLE_ENDIAN)
+//            normalizedArray.forEach { value ->
+//                val scaled = (value * 65535f).toInt().coerceIn(0, 65535)
+//                byteBuffer.putShort(scaled.toShort())
+//            }
+//            byteBuffer.rewind() // Ensure buffer is ready for reading
+//
+//            Log.d("DNG-Save", "ByteBuffer created. Size: ${byteBuffer.capacity()} bytes")
 
             // Save to DNG
-            SaveUtils.saveProcessedDngFile(dngCreator, processedBuffer, filePathParent, fileNameParent, width, height)
-
+            SaveUtils.saveProcessedDngFile(dngCreator, byteBuffer, filePathParent, fileNameParent, width, height)
         } catch (e: Exception) {
-            Log.e("DNG-Save", "Error saving DNG file: ${e.message}")
-            e.printStackTrace()
+            Log.e("saveRawProcessedOutput", "Error saving DNG: ${e.message}")
         }
     }
 
@@ -190,6 +318,91 @@ object RAW2RAWExecuModel {
         }
 
     }
+
+    private fun save4ChRawProcessedOutput(
+        output: Tensor,              // 4-channel float model output
+        dimensions: IntArray,        // [1, 4, H, W]
+        dngCreator: DngCreator,
+        filePathParent: String,
+        fileNameParent: String,
+    ) {
+        try {
+            val floatArray = output.dataAsFloatArray
+            val channels = dimensions[1]
+            val height = dimensions[2]
+            val width = dimensions[3]
+
+            if (channels != 4) {
+                Log.e("save4ChRawProcessedOutput", "Expected 4 channels, got $channels")
+                return
+            }
+
+            Log.d("save4ChRawProcessedOutput", "Saving RGGB RAW: Width=$width, Height=$height, Channels=$channels")
+
+            // Separate channels: assuming CHW order (4 * H * W)
+            val planeSize = width * height
+            val red = FloatArray(planeSize)
+            val green1 = FloatArray(planeSize)
+            val green2 = FloatArray(planeSize)
+            val blue = FloatArray(planeSize)
+
+            for (i in 0 until planeSize) {
+                red[i] = floatArray[i]
+                green1[i] = floatArray[i + planeSize]
+                green2[i] = floatArray[i + 2 * planeSize]
+                blue[i] = floatArray[i + 3 * planeSize]
+            }
+
+            // Create 1-channel RGGB layout
+            val rawBayer = ShortArray(planeSize)
+            var minScaled = Int.MAX_VALUE
+            var maxScaled = Int.MIN_VALUE
+
+            for (y in 0 until height) {
+                for (x in 0 until width) {
+                    val index = y * width + x
+                    val value = when {
+                        y % 2 == 0 && x % 2 == 0 -> red[index]      // R
+                        y % 2 == 0 && x % 2 == 1 -> green1[index]   // G1
+                        y % 2 == 1 && x % 2 == 0 -> green2[index]   // G2
+                        else -> blue[index]                         // B
+                    }
+
+                    val scaled = (value * 65535f).toInt().coerceIn(0, 65535)
+                    rawBayer[index] = scaled.toShort()
+
+                    if (scaled < minScaled) minScaled = scaled
+                    if (scaled > maxScaled) maxScaled = scaled
+                }
+            }
+
+            // Log some debug info
+            Log.d("save4ChRawProcessedOutput", "First 20 Bayer values: ${rawBayer.take(20)}")
+            Log.d("save4ChRawProcessedOutput", "Scaled value range: min=$minScaled, max=$maxScaled")
+
+            // Create ByteBuffer from Bayer array
+            val byteBuffer = ByteBuffer.allocate(rawBayer.size * 2).order(ByteOrder.LITTLE_ENDIAN)
+            rawBayer.forEach { byteBuffer.putShort(it) }
+
+            Log.d("save4ChRawProcessedOutput", "ByteBuffer filled with ${byteBuffer.capacity()} bytes.")
+
+            // Save using DNG Creator
+            SaveUtils.saveProcessedDngFile(
+                dngCreator,
+                byteBuffer,
+                filePathParent,
+                fileNameParent,
+                width,
+                height
+            )
+
+        } catch (e: Exception) {
+            Log.e("save4ChRawProcessedOutput", "Error saving DNG: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+
+
 
     fun checkModelExecution(interpreter: Interpreter, delegate: Delegate?) {
         val executionType = when (delegate) {

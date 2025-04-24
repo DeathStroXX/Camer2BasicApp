@@ -171,4 +171,78 @@ object SaveUtils {
             e.printStackTrace()
         }
     }
+    fun saveRgbIspProcessedOutput(outputDataByteArray: ByteArray, newOutputShape: IntArray, dngCreator: DngCreator, filePath: String, fileNameParent: String){
+        val outputData = outputDataByteArray.asUByteArray()
+        val fileNameProcessed = "${fileNameParent}_ISP_Processed.jpeg"
+
+        val channels = newOutputShape[1]
+        val imageHeight = newOutputShape[2]
+        val imageWidth = newOutputShape[3]
+
+        // Log output shape details
+        Log.d("saveRgbIspProcessedOutput", "Output shape: [C=${channels}, H=${imageHeight}, W=${imageWidth}]")
+
+
+        val expectedSize = imageHeight * imageWidth * 3 // RGB
+        val actualSize = outputData.size
+
+
+        // Log computed dimensions and expected memory
+        val estimatedMemoryBytes = imageHeight * imageWidth * 4 // ARGB_8888 = 4 bytes/pixel
+        val estimatedMemoryMB = estimatedMemoryBytes / 1024 / 1024
+
+        Log.d("BitmapInfo", "Creating bitmap of size: ${imageWidth}x${imageHeight}")
+        Log.d("BitmapInfo", "Expected data size: $expectedSize, Actual: $actualSize")
+        Log.d("BitmapInfo", "Estimated bitmap memory: ${estimatedMemoryMB}MB")
+
+        if (actualSize < expectedSize) {
+            Log.e("BitmapError", "Insufficient output data! Aborting bitmap creation.")
+            return // or return from the function if not in coroutine
+        }
+
+// Proceed only if data size is valid
+        val bitmapOut = Bitmap.createBitmap(imageWidth, imageHeight, Bitmap.Config.ARGB_8888)
+
+        var index = 0
+        for (y in 0 until imageHeight) {
+            for (x in 0 until imageWidth) {
+                val r = outputData[index++].toInt()
+                val g = outputData[index++].toInt()
+                val b = outputData[index++].toInt()
+
+                val color = (255 shl 24) or (r shl 16) or (g shl 8) or b
+                bitmapOut.setPixel(x, y, color)
+            }
+        }
+
+// Log pixel range preview
+        val pixelSample = (0 until 10).map { i -> outputData[i].toUByte().toInt() }.joinToString(", ")
+        Log.d("ModelProcessOutput", "First 10 pixel channel values: $pixelSample")
+        Log.d("ModelProcessOutput", "Bitmap successfully created!")
+
+        val outputFile = File(filePath, fileNameProcessed)
+
+
+        val byteArrayOutputStream = ByteArrayOutputStream()
+        bitmapOut.compress(Bitmap.CompressFormat.JPEG, 100, byteArrayOutputStream)
+
+        val byteArray = byteArrayOutputStream.toByteArray()
+        val chunkSize = 1024 * 1024
+        var offset = 0
+
+        FileOutputStream(outputFile).use { outputStream ->
+            while (offset < byteArray.size) {
+                val chunkEnd = minOf(offset + chunkSize, byteArray.size)
+                outputStream.write(byteArray.sliceArray(offset until chunkEnd))
+                offset = chunkEnd
+                Log.d("SavingProgress", "Saved $offset / ${byteArray.size} bytes")
+            }
+        }
+
+        Log.d("ImageSaving", "Image saved successfully to ${outputFile.absolutePath}")
+
+
+
+
+    }
 }
