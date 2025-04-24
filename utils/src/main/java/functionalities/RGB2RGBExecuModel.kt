@@ -23,6 +23,8 @@ object RGB2RGBExecuModel {
             val fileNameProcessed = "${fileName}_Processed.jpeg"
             val inputArray = preprocessBitmapToModelInput(bitmap)
 //            Log.d("runInferenceOnBitmap", inputArray.take(20).joinToString(", "))
+            val maxHeapSize = Runtime.getRuntime().maxMemory() / (1024 * 1024)
+            Log.d("MemoryInfo", "Max heap size: ${maxHeapSize}MB")
 
             val inputShape = longArrayOf(1, 3, height.toLong(), width.toLong()) // NCHW
             Log.d("runInferenceOnBitmap", "Input shape: ${inputShape.joinToString(", ")}")
@@ -126,6 +128,9 @@ object RGB2RGBExecuModel {
             Log.d("ImageSaving", "Image saved successfully to ${outputFile.absolutePath}")
         } catch (e: Exception) {
             Log.e("ExecuTorchError", "Error during inference: ${e.message}")
+        } finally {
+            bitmap.recycle()
+            System.gc()
         }
     }
 
