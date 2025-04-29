@@ -11,6 +11,7 @@ import android.media.Image
 import android.hardware.camera2.DngCreator
 import android.util.Size
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.ByteBuffer
