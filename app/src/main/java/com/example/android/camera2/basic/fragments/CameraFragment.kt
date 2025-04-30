@@ -816,7 +816,9 @@ class CameraFragment : Fragment() {
          */
         private fun createFile(context: Context, extension: String): File {
             val sdf = SimpleDateFormat("yyyy_MM_dd_HH_mm_ss_SSS", Locale.US)
-            return File(context.filesDir, "IMG_${sdf.format(Date())}.$extension")
+            val filePath = Environment.getExternalStoragePublicDirectory(
+                Environment.DIRECTORY_DOWNLOADS).absolutePath + "/Camera2Basic/Images/"
+            return File(filePath, "IMG_${sdf.format(Date())}.$extension")
         }
 
 
