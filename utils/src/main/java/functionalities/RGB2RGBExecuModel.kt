@@ -2,6 +2,8 @@ package functionalities
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Color
+import android.os.Environment
 import android.util.Log
 import functionalities.Raw2RawModelPipeline.checkModelExecution
 import functionalities.SaveUtils.saveBitmapToFile
@@ -29,8 +31,9 @@ object RGB2RGBExecuModel {
             val inputShape = longArrayOf(1, 3, height.toLong(), width.toLong()) // NCHW
             Log.d("runInferenceOnBitmap", "Input shape: ${inputShape.joinToString(", ")}")
 
-            val inputTensor = Tensor.fromBlob(inputArray, inputShape)
+            val inputTensor = Tensor.fromBlob(inputArray, longArrayOf(1, 3, height.toLong(), width.toLong()))
             val inputEValue = EValue.from(inputTensor)
+
 
             val startTime = System.nanoTime()
             val outputEValue = modelExecu.forward(inputEValue)
@@ -39,78 +42,124 @@ object RGB2RGBExecuModel {
             val inferenceTimeMs = (endTime - startTime) / 1_000_000.0
             Log.d("ExecuTorch-Inference", "Inference Time: $inferenceTimeMs ms")
 
+            val tensor = outputEValue.toList()[0].toTensor()
+
+            val floatArray = tensor.getDataAsFloatArray()  // Instead of .toByteArray()
+
+
+// Convert to ByteArray
+fun convertFloatArrayFromNCHWToBitmap(data: FloatArray, width: Int, height: Int): Bitmap {
+    val bitmap2 = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+
+    val channelSize = width * height
+    val rOffset = 0
+    val gOffset = channelSize
+    val bOffset = channelSize * 2
+
+    for (y in 0 until height) {
+        for (x in 0 until width) {
+            val index = y * width + x
+
+            val r = (data[rOffset + index] * 255f).coerceIn(0f, 255f).toInt()
+            val g = (data[gOffset + index] * 255f).coerceIn(0f, 255f).toInt()
+            val b = (data[bOffset + index] * 255f).coerceIn(0f, 255f).toInt()
+
+            val color = Color.rgb(r, g, b)
+            bitmap2.setPixel(x, y, color)
+        }
+    }
+
+    return bitmap2
+}
+
+
+
+// Convert ByteArray to Bitmap
+            val bitmap2 = convertFloatArrayFromNCHWToBitmap(floatArray, width, height)
+
+
+
+// Save as JPEG
+//            val file = File(filePath, fileNameProcessed)
+//            FileOutputStream(file).use { out ->
+//                bitmap2.compress(Bitmap.CompressFormat.JPEG, 100, out)
+//            }
+//            Log.d("ImageSaving", "Image saved successfully ")
+//
+//
+
             // Extract output tensor
-            val outputTensor = outputEValue[0].toTensor()
-
-            val outputData = outputTensor.dataAsUnsignedByteArray.asUByteArray()
-
-
-            val outputShape = outputTensor.shape() // [1, 3, H, W]
-            val outputShapeInt = outputShape.map { it.toInt() }.toIntArray()
-
-            Log.d("OutputShape", "Output shape as IntArray: ${outputShapeInt.joinToString(", ")}")
-
-            val channels = outputShapeInt[1]
-            val imageHeight = outputShapeInt[2]
-            val imageWidth = outputShapeInt[3]
-            val outputSize = channels * imageHeight * imageWidth
-
-
-            // Convert to UByteArray
-
-//            val finalUByteArray = UByteArray(outputSize)
-            Log.d("runInferenceOnBitmap", "First 20 Output values : ${outputData.take(20).joinToString(", ")}")
-            Log.d("runInferenceOnBitmap", "OutputData size: ${outputData.size}")
-//            saveProcessedRGB2RGBOutput(outputData, outputShapeInt, fileName, filePath)
-//            val floatArray = FloatArray(outputData.size) { i ->
-//                outputData[i].toFloat()  // Assuming normalized between 0 and 1
-
-
-            // Log output shape details
-            Log.d("BitmapInfo", "Output shape: [C=${outputShapeInt[1]}, H=${outputShapeInt[2]}, W=${outputShapeInt[3]}]")
-
-
-            val expectedSize = imageHeight * imageWidth * 3 // RGB
-            val actualSize = outputData.size
-
-// Log computed dimensions and expected memory
-            val estimatedMemoryBytes = imageHeight * imageWidth * 4 // ARGB_8888 = 4 bytes/pixel
-            val estimatedMemoryMB = estimatedMemoryBytes / 1024 / 1024
-
-            Log.d("BitmapInfo", "Creating bitmap of size: ${imageWidth}x${imageHeight}")
-            Log.d("BitmapInfo", "Expected data size: $expectedSize, Actual: $actualSize")
-            Log.d("BitmapInfo", "Estimated bitmap memory: ${estimatedMemoryMB}MB")
-
-            if (actualSize < expectedSize) {
-                Log.e("BitmapError", "Insufficient output data! Aborting bitmap creation.")
-                return // or return from the function if not in coroutine
-            }
-
-// Proceed only if data size is valid
-            val bitmapOut = Bitmap.createBitmap(imageWidth, imageHeight, Bitmap.Config.ARGB_8888)
-
-            var index = 0
-            for (y in 0 until imageHeight) {
-                for (x in 0 until imageWidth) {
-                    val r = outputData[index++].toInt()
-                    val g = outputData[index++].toInt()
-                    val b = outputData[index++].toInt()
-
-                    val color = (255 shl 24) or (r shl 16) or (g shl 8) or b
-                    bitmapOut.setPixel(x, y, color)
-                }
-            }
-
-// Log pixel range preview
-            val pixelSample = (0 until 10).map { i -> outputData[i].toUByte().toInt() }.joinToString(", ")
-            Log.d("ModelProcessOutput", "First 10 pixel channel values: $pixelSample")
-            Log.d("ModelProcessOutput", "Bitmap successfully created!")
-
+//            val outputTensor = outputEValue[0].toTensor()
+//
+//            val outputData = outputTensor.dataAsUnsignedByteArray.asUByteArray()
+//
+//
+//            val outputShape = outputTensor.shape() // [1, 3, H, W]
+//            val outputShapeInt = outputShape.map { it.toInt() }.toIntArray()
+//
+//            Log.d("OutputShape", "Output shape as IntArray: ${outputShapeInt.joinToString(", ")}")
+//
+//            val channels = outputShapeInt[1]
+//            val imageHeight = outputShapeInt[2]
+//            val imageWidth = outputShapeInt[3]
+//            val outputSize = channels * imageHeight * imageWidth
+//
+//
+//            // Convert to UByteArray
+//
+////            val finalUByteArray = UByteArray(outputSize)
+//            Log.d("runInferenceOnBitmap", "First 20 Output values : ${outputData.take(20).joinToString(", ")}")
+//            Log.d("runInferenceOnBitmap", "OutputData size: ${outputData.size}")
+////            saveProcessedRGB2RGBOutput(outputData, outputShapeInt, fileName, filePath)
+////            val floatArray = FloatArray(outputData.size) { i ->
+////                outputData[i].toFloat()  // Assuming normalized between 0 and 1
+//
+//
+//            // Log output shape details
+//            Log.d("BitmapInfo", "Output shape: [C=${outputShapeInt[1]}, H=${outputShapeInt[2]}, W=${outputShapeInt[3]}]")
+//
+//
+//            val expectedSize = imageHeight * imageWidth * 3 // RGB
+//            val actualSize = outputData.size
+//
+//// Log computed dimensions and expected memory
+//            val estimatedMemoryBytes = imageHeight * imageWidth * 4 // ARGB_8888 = 4 bytes/pixel
+//            val estimatedMemoryMB = estimatedMemoryBytes / 1024 / 1024
+//
+//            Log.d("BitmapInfo", "Creating bitmap of size: ${imageWidth}x${imageHeight}")
+//            Log.d("BitmapInfo", "Expected data size: $expectedSize, Actual: $actualSize")
+//            Log.d("BitmapInfo", "Estimated bitmap memory: ${estimatedMemoryMB}MB")
+//
+//            if (actualSize < expectedSize) {
+//                Log.e("BitmapError", "Insufficient output data! Aborting bitmap creation.")
+//                return // or return from the function if not in coroutine
+//            }
+//
+//// Proceed only if data size is valid
+//            val bitmapOut = Bitmap.createBitmap(imageWidth, imageHeight, Bitmap.Config.ARGB_8888)
+//
+//            var index = 0
+//            for (y in 0 until imageHeight) {
+//                for (x in 0 until imageWidth) {
+//                    val r = outputData[index++].toInt()
+//                    val g = outputData[index++].toInt()
+//                    val b = outputData[index++].toInt()
+//
+//                    val color = (255 shl 24) or (r shl 16) or (g shl 8) or b
+//                    bitmapOut.setPixel(x, y, color)
+//                }
+//            }
+//
+//// Log pixel range preview
+//            val pixelSample = (0 until 10).map { i -> outputData[i].toUByte().toInt() }.joinToString(", ")
+//            Log.d("ModelProcessOutput", "First 10 pixel channel values: $pixelSample")
+//            Log.d("ModelProcessOutput", "Bitmap successfully created!")
+//
             val outputFile = File(filePath, fileNameProcessed)
-
-
+//
+//
             val byteArrayOutputStream = ByteArrayOutputStream()
-            bitmapOut.compress(Bitmap.CompressFormat.JPEG, 100, byteArrayOutputStream)
+            bitmap2.compress(Bitmap.CompressFormat.JPEG, 100, byteArrayOutputStream)
 
             val byteArray = byteArrayOutputStream.toByteArray()
             val chunkSize = 1024 * 1024
@@ -135,49 +184,32 @@ object RGB2RGBExecuModel {
     }
 
     fun preprocessBitmapToModelInput(bitmap: Bitmap): FloatArray {
-
-        // Resize the bitmap to the model's expected input size
-//        val resizedBitmap = Bitmap.createScaledBitmap(bitmap, 2304, 1728, true)
-//        Log.d("Preprocess", "Bitmap resized to: ${resizedBitmap.width}x${resizedBitmap.height}")
         val width = bitmap.width
         val height = bitmap.height
-        // Initialize the FloatArray for the RGB input
-        val floatArray = FloatArray(height * width * 3) // For RGB input
+
+        val r = FloatArray(height * width)
+        val g = FloatArray(height * width)
+        val b = FloatArray(height * width)
+
         var index = 0
-
-        // Debugging variables to track pixel values
-        var minPixelValue = Float.MAX_VALUE
-        var maxPixelValue = Float.MIN_VALUE
-        Log.d("preprocessBitmapToModel", "Minumum Pixel value: ${minPixelValue}; Maximum Pixel value: ${maxPixelValue}")
-
-        for (y in 0 until bitmap.height) {
-            for (x in 0 until bitmap.width) {
+        for (y in 0 until height) {
+            for (x in 0 until width) {
                 val pixel = bitmap.getPixel(x, y)
-                val r = (pixel shr 16 and 0xFF) / 255.0f // Red
-                val g = (pixel shr 8 and 0xFF) / 255.0f  // Green
-                val b = (pixel and 0xFF) / 255.0f        // Blue
-
-                // Store the normalized RGB values in the float array
-                floatArray[index++] = r
-                floatArray[index++] = g
-                floatArray[index++] = b
-
-                // Update min and max for debugging
-                minPixelValue = minOf(minPixelValue, r, g, b)
-                maxPixelValue = maxOf(maxPixelValue, r, g, b)
+                r[index] = (pixel shr 16 and 0xFF) / 255.0f
+                g[index] = (pixel shr 8 and 0xFF) / 255.0f
+                b[index] = (pixel and 0xFF) / 255.0f
+                index++
             }
         }
 
-        // Log statistics about the processed input
-        Log.d("preprocessBitmapToModel", "Preprocessed float array created.")
-        Log.d("preprocessBitmapToModel", "Total values: ${floatArray.size}, Min: $minPixelValue, Max: $maxPixelValue")
+        // Combine into NCHW format: [R..., G..., B...]
+        val nchw = FloatArray(3 * height * width)
+        System.arraycopy(r, 0, nchw, 0, r.size)
+        System.arraycopy(g, 0, nchw, r.size, g.size)
+        System.arraycopy(b, 0, nchw, r.size + g.size, b.size)
 
-        // Log a sample of the normalized pixel values
-        Log.d("preprocessBitmapToModel", "Sample values: ${floatArray.take(10)}")
         bitmap.recycle()
-
-
-        return floatArray
+        return nchw
     }
 
     fun saveProcessedRGB2RGBOutput(outputArrayValue: UByteArray, outputShape: IntArray, fileParentName: String, filePath: String) {
