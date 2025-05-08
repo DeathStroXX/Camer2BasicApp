@@ -73,7 +73,7 @@ object RAW2RAWExecuModel {
             when (outputChannels) {
                 3 -> {
                     Log.d("OutputType", "Detected RGB output")
-//                    SaveUtils.saveRgbIspProcessedOutput(outputData, newOutputShape, dngCreator, filePath, fileName)
+                    SaveUtils.saveRgbIspProcessedOutput(outputTensor, newOutputShape, dngCreator, filePath, fileName)
                 }
                 4 -> {
                     Log.d("OutputType", "Detected RGBA output")

@@ -90,6 +90,8 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 import android.content.res.AssetFileDescriptor;
+import android.widget.TextView
+import android.widget.Toast
 import java.nio.MappedByteBuffer
 import java.nio.channels.FileChannel
 import org.pytorch.executorch.Module
@@ -416,7 +418,6 @@ class CameraFragment : Fragment() {
 //                                    result.format == ImageFormat.DEPTH_JPEG))
 //                    }
                 }
-
                 // Re-enable click listener after photo is taken
                 it.post { it.isEnabled = true }
             }
@@ -680,6 +681,14 @@ class CameraFragment : Fragment() {
 
 
                     rawImage.close();
+                    lifecycleScope.launch(Dispatchers.Main) {
+                        if (isAdded) {
+                            val toast = Toast.makeText(requireContext(), "Photo taken!", Toast.LENGTH_SHORT)
+                            toast.view?.setBackgroundColor(Color.BLACK)
+                            toast.view?.findViewById<TextView>(android.R.id.message)?.setTextColor(Color.WHITE)
+                            toast.show()
+                        }
+                    }
                     cont.resume(dngFile)
                 } catch (exc: IOException) {
                     Log.e(TAG, "Unable to write DNG image to file", exc)

@@ -3,6 +3,7 @@ package functionalities
 import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.hardware.camera2.CaptureResult
 import android.os.Environment
 import android.provider.MediaStore
@@ -11,6 +12,7 @@ import android.media.Image
 import android.hardware.camera2.DngCreator
 import android.util.Size
 import org.json.JSONObject
+import org.pytorch.executorch.Tensor
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -40,6 +42,7 @@ object SaveUtils {
             Log.d("SaveJPEG", "JPEG saved to: $uri")
         } ?: Log.e("SaveJPEG", "Failed to save JPEG")
     }
+
     // Save JPEG to Gallery which is converted in app from raw to jpeg
     fun saveBitmapAsJpeg(bitmap: Bitmap, dngFile: File): File? {
         try {
@@ -142,8 +145,9 @@ object SaveUtils {
 
 
     }
+
     // Saving the processes image as a DNG file from raw 2 raw model
-     fun saveProcessedDngFile(
+    fun saveProcessedDngFile(
         dngCreator: DngCreator,
         processedBuffer: ByteBuffer,
         filePathParent: String,
@@ -172,78 +176,87 @@ object SaveUtils {
             e.printStackTrace()
         }
     }
-    fun saveRgbIspProcessedOutput(outputDataByteArray: ByteArray, newOutputShape: IntArray, dngCreator: DngCreator, filePath: String, fileNameParent: String){
-        val outputData = outputDataByteArray.asUByteArray()
-        val fileNameProcessed = "${fileNameParent}_ISP_Processed.jpeg"
 
-        val channels = newOutputShape[1]
-        val imageHeight = newOutputShape[2]
-        val imageWidth = newOutputShape[3]
+    fun saveRgbIspProcessedOutput(
+        outputData: Tensor,
+        newOutputShape: IntArray,
+        dngCreator: DngCreator,
+        filePath: String,
+        fileNameParent: String
+    ) {
+        try{
+            val outputData = outputData.dataAsFloatArray
+            val fileNameProcessed = "${fileNameParent}_ISP_Processed.jpeg"
 
-        // Log output shape details
-        Log.d("saveRgbIspProcessedOutput", "Output shape: [C=${channels}, H=${imageHeight}, W=${imageWidth}]")
+            val channels = newOutputShape[1]
+            val imageHeight = newOutputShape[2]
+            val imageWidth = newOutputShape[3]
+
+            // Log output shape details
+            Log.d(
+                "saveRgbIspProcessedOutput",
+                "Output shape: [C=${channels}, H=${imageHeight}, W=${imageWidth}]"
+            )
 
 
-        val expectedSize = imageHeight * imageWidth * 3 // RGB
-        val actualSize = outputData.size
+            val expectedSize = imageHeight * imageWidth * 3 // RGB
+            val actualSize = outputData.size
 
+            //        Convert to ByteArray
+            fun convertFloatArrayFromNCHWToBitmap(data: FloatArray, width: Int, height: Int): Bitmap {
+                val bitmap2 = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
 
-        // Log computed dimensions and expected memory
-        val estimatedMemoryBytes = imageHeight * imageWidth * 4 // ARGB_8888 = 4 bytes/pixel
-        val estimatedMemoryMB = estimatedMemoryBytes / 1024 / 1024
+                val channelSize = width * height
+                val rOffset = 0
+                val gOffset = channelSize
+                val bOffset = channelSize * 2
 
-        Log.d("BitmapInfo", "Creating bitmap of size: ${imageWidth}x${imageHeight}")
-        Log.d("BitmapInfo", "Expected data size: $expectedSize, Actual: $actualSize")
-        Log.d("BitmapInfo", "Estimated bitmap memory: ${estimatedMemoryMB}MB")
+                for (y in 0 until height) {
+                    for (x in 0 until width) {
+                        val index = y * width + x
 
-        if (actualSize < expectedSize) {
-            Log.e("BitmapError", "Insufficient output data! Aborting bitmap creation.")
-            return // or return from the function if not in coroutine
-        }
+                        val r = (data[rOffset + index] * 255f).coerceIn(0f, 255f).toInt()
+                        val g = (data[gOffset + index] * 255f).coerceIn(0f, 255f).toInt()
+                        val b = (data[bOffset + index] * 255f).coerceIn(0f, 255f).toInt()
 
-// Proceed only if data size is valid
-        val bitmapOut = Bitmap.createBitmap(imageWidth, imageHeight, Bitmap.Config.ARGB_8888)
+                        val color = Color.rgb(r, g, b)
+                        bitmap2.setPixel(x, y, color)
+                    }
+                }
 
-        var index = 0
-        for (y in 0 until imageHeight) {
-            for (x in 0 until imageWidth) {
-                val r = outputData[index++].toInt()
-                val g = outputData[index++].toInt()
-                val b = outputData[index++].toInt()
-
-                val color = (255 shl 24) or (r shl 16) or (g shl 8) or b
-                bitmapOut.setPixel(x, y, color)
+                return bitmap2
             }
-        }
+            // Convert ByteArray to Bitmap
+            val bitmap2 = convertFloatArrayFromNCHWToBitmap(outputData, imageWidth, imageHeight)
 
-// Log pixel range preview
-        val pixelSample = (0 until 10).map { i -> outputData[i].toUByte().toInt() }.joinToString(", ")
-        Log.d("ModelProcessOutput", "First 10 pixel channel values: $pixelSample")
-        Log.d("ModelProcessOutput", "Bitmap successfully created!")
+            // Convert ByteArray to Bitmap
+            val outputFile = File(filePath, fileNameProcessed)
+//
+//
+            val byteArrayOutputStream = ByteArrayOutputStream()
+            bitmap2.compress(Bitmap.CompressFormat.JPEG, 100, byteArrayOutputStream)
 
-        val outputFile = File(filePath, fileNameProcessed)
+            val byteArray = byteArrayOutputStream.toByteArray()
+            val chunkSize = 1024 * 1024
+            var offset = 0
 
-
-        val byteArrayOutputStream = ByteArrayOutputStream()
-        bitmapOut.compress(Bitmap.CompressFormat.JPEG, 100, byteArrayOutputStream)
-
-        val byteArray = byteArrayOutputStream.toByteArray()
-        val chunkSize = 1024 * 1024
-        var offset = 0
-
-        FileOutputStream(outputFile).use { outputStream ->
-            while (offset < byteArray.size) {
-                val chunkEnd = minOf(offset + chunkSize, byteArray.size)
-                outputStream.write(byteArray.sliceArray(offset until chunkEnd))
-                offset = chunkEnd
-                Log.d("SavingProgress", "Saved $offset / ${byteArray.size} bytes")
+            FileOutputStream(outputFile).use { outputStream ->
+                while (offset < byteArray.size) {
+                    val chunkEnd = minOf(offset + chunkSize, byteArray.size)
+                    outputStream.write(byteArray.sliceArray(offset until chunkEnd))
+                    offset = chunkEnd
+                    Log.d("SavingProgress", "Saved $offset / ${byteArray.size} bytes")
+                }
             }
+            bitmap2.recycle()
+            Log.d("ImageSaving", "Image saved successfully to ${outputFile.absolutePath}")
+        } catch (e: Exception) {
+            Log.e("ExecuTorchError", "Error during inference: ${e.message}")
+        } finally {
+
+            System.gc()
         }
-
-        Log.d("ImageSaving", "Image saved successfully to ${outputFile.absolutePath}")
-
-
-
-
     }
 }
+
+
