@@ -19,10 +19,7 @@
 package com.example.android.camera2.basic.fragments
 
 
-//import android.hardware.HardwareBuffer
 
-//import androidx.annotation.RequiresApi
-//import androidx.paging.map
 
 import android.annotation.SuppressLint
 import android.content.Context
@@ -65,22 +62,17 @@ import com.example.android.camera.utils.getPreviewOutputSize
 import com.example.android.camera2.basic.CameraActivity
 import com.example.android.camera2.basic.R
 import com.example.android.camera2.basic.databinding.FragmentCameraBinding
-import functionalities.ModelUtils
-import functionalities.RGB2RGBmodel
-import functionalities.Raw2RawModelPipeline
+
 import functionalities.SaveUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
-import org.tensorflow.lite.Interpreter
-import org.tensorflow.lite.gpu.GpuDelegate
+
 import java.io.Closeable
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -89,17 +81,15 @@ import java.util.concurrent.TimeoutException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
-import android.content.res.AssetFileDescriptor;
+
 import android.widget.TextView
 import android.widget.Toast
-import java.nio.MappedByteBuffer
-import java.nio.channels.FileChannel
+
 import org.pytorch.executorch.Module
-import org.pytorch.executorch.EValue
-import org.pytorch.executorch.Tensor
+
 import functionalities.RGB2RGBExecuModel
 import functionalities.RAW2RAWExecuModel
-//import functionalities.ExecuTorch
+
 
 
 class CameraFragment : Fragment() {
@@ -132,37 +122,14 @@ class CameraFragment : Fragment() {
     /** Readers used as buffers for camera still shots */
     private lateinit var imageReader: ImageReader
 
-    //For reading raw image
+
     private lateinit var imageReaderRAW: ImageReader
 
-    // For DEPTH\
-    private lateinit var imageReaderDepth: ImageReader
-    //For model inferences
-//    private lateinit var interpreter: Interpreter
-//    private lateinit var interpreter2: Interpreter
+
     private lateinit var interpreter: Module
     private lateinit var interpreter2: Module
 
-    fun createGpuInterpreter(context: Context, modelPath: String): Interpreter {
-        val modelFile = loadModelFilelocal(context, modelPath)
 
-        // Create GPU delegate
-        val gpuDelegate = GpuDelegate()
-        val options = Interpreter.Options().apply {
-            addDelegate(gpuDelegate) // Force GPU execution
-        }
-
-        // Create interpreter with GPU delegate
-        return Interpreter(modelFile, options)
-    }
-
-    // Helper function to load model from assets
-    private fun loadModelFilelocal(context: Context, modelPath: String): MappedByteBuffer {
-        val fileDescriptor: AssetFileDescriptor = context.assets.openFd(modelPath)
-        val inputStream = FileInputStream(fileDescriptor.fileDescriptor)
-        val fileChannel = inputStream.channel
-        return fileChannel.map(FileChannel.MapMode.READ_ONLY, fileDescriptor.startOffset, fileDescriptor.declaredLength)
-    }
 
 
     /** [HandlerThread] where all camera operations run */
@@ -208,29 +175,16 @@ class CameraFragment : Fragment() {
                 return
             }
 
-            val modelFile = file.readBytes()
-            val buffer = ByteBuffer.allocateDirect(modelFile.size).apply {
-                order(ByteOrder.nativeOrder())
-                put(modelFile)
-            }
-
             if (isRaw) {
                 interpreter = Module.load(file.absolutePath)
-//                interpreter = Interpreter(buffer)
+
                 Log.d("Model---", "Interpreter initialized for RAW successfully from $filePath")
             } else {
-                // Create GPU delegate
-//                val gpuDelegate = GpuDelegate()
-//                val options = Interpreter.Options().apply {
-//                    addDelegate(gpuDelegate) // Enable GPU acceleration
-//                }
+
                 Log.d("ExecuTorchModel", "Loading model from: ${file.absolutePath}")
                 interpreter2 = Module.load(file.absolutePath)
                 Log.d("ExecuTorchModel", "Model loaded successfully")
 
-//                 Initialize interpreter with GPU delegate
-//                interpreter2 = Interpreter(buffer, options)
-//                interpreter2 = Interpreter(buffer)
 
                 Log.d("Model---", "Interpreter initialized with GPU successfully.")
                 Log.d("Model---", "Interpreter initialized for RGB successfully from $filePath")
@@ -239,37 +193,6 @@ class CameraFragment : Fragment() {
             Log.e("Model--", "Failed to initialize interpreter: ${e.message}")
         }
     }
-
-
-//    private fun loadModel(filePath: String, isRaw: Boolean) {
-//        try {
-//            val file = File(filePath)
-//            if (!file.exists()) {
-//                Log.e("Model--", "Model file does not exist at path: $filePath")
-//                return
-//            }
-//
-//            val modelFile = file.readBytes()
-//            val bufferFile = File.createTempFile("temp_model", ".ptl", context?.cacheDir ?: return).apply {
-//                deleteOnExit()
-//                FileOutputStream(this).use { it.write(modelFile) }
-//            }
-//
-//
-//            if (isRaw) {
-//                interpreter = Module.load(bufferFile.absolutePath)
-//                Log.d("Model---", "Interpreter initialized for RAW successfully from $filePath")
-//            } else {
-//                interpreter2 = Module.load(bufferFile.absolutePath)
-//                Log.d("Model---", "Interpreter initialized for RGB successfully from $filePath")
-//            }
-//
-//        } catch (e: Exception) {
-//            Log.e("Model--", "Failed to initialize interpreter: ${e.message}")
-//        }
-//    }
-
-
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -336,9 +259,7 @@ class CameraFragment : Fragment() {
      */
     private fun initializeCamera() = lifecycleScope.launch(Dispatchers.Main) {
 
-        //Loading the model
-//       interpreter = ModelUtils.createInterpreter(requireContext(), "model.tflite")
-//        Log.d("Model", "Model loaded successfully.")
+
 
         // Open the selected camera
         camera = openCamera(cameraManager, args.cameraId, cameraHandler)
@@ -352,11 +273,11 @@ class CameraFragment : Fragment() {
 
 
         // RAW ImageReader
-            //ra
+
         val rawSizes = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
             ?.getOutputSizes(ImageFormat.RAW_SENSOR)
 
-        if (rawSizes != null && rawSizes.isNotEmpty()) {
+        if (!rawSizes.isNullOrEmpty()) {
             val rawSize = rawSizes.maxByOrNull { it.height * it.width }!!
             imageReaderRAW = ImageReader.newInstance(
                 rawSize.width, rawSize.height, ImageFormat.RAW_SENSOR, 1)   // rawSize 2304x1728
@@ -407,16 +328,6 @@ class CameraFragment : Fragment() {
                     }
 
 
-
-
-                    // Display the photo taken to user
-//                    lifecycleScope.launch(Dispatchers.Main) {
-//                        navController.navigate(CameraFragmentDirections
-//                            .actionCameraToJpegViewer(output.absolutePath)
-//                            .setOrientation(result.orientation)
-//                            .setDepth(Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
-//                                    result.format == ImageFormat.DEPTH_JPEG))
-//                    }
                 }
                 // Re-enable click listener after photo is taken
                 it.post { it.isEnabled = true }
@@ -498,7 +409,7 @@ class CameraFragment : Fragment() {
 
         val rawImageQueue = ArrayBlockingQueue<Image>(IMAGE_BUFFER_SIZE)  // Adding for raw
 
-//        val depthImageQueue = ArrayBlockingQueue<Image>(IMAGE_BUFFER_SIZE)  // Ading for depth
+
 
         imageReader.setOnImageAvailableListener({ reader ->
             val image = reader.acquireNextImage()
@@ -600,7 +511,7 @@ class CameraFragment : Fragment() {
                 val buffer = result.image.planes[0].buffer
                 val bytes = ByteArray(buffer.remaining()).apply { buffer.get(this) }
                 try {
-                    val jpgFile = createFile(requireContext(), "jpg")
+                    val jpgFile = createFile("jpg")
                     FileOutputStream(jpgFile).use { it.write(bytes) }
 
                     cont.resume(jpgFile)
@@ -619,19 +530,19 @@ class CameraFragment : Fragment() {
 
                 // Handle RAW_SENSOR image format
 //
-                val dngFile = createFile(requireContext(), "dng")
+                val dngFile = createFile("dng")
                 val fileName = dngFile.nameWithoutExtension
                 try {
 
                     val rawImage = result.image
-//                    val rawBuffer = rawImage.planes[0].buffer
+
 
 
                     val dngCreator = DngCreator(characteristics, result.metadata)
                     SaveUtils.saveDngAndMetaToGallery(requireContext(),dngCreator, dngFile,rawImage, result.metadata)
 
 
-//                    val bitmap = loadDngAndSaveJpeg(rawImage)
+
                     val dngFile = File(Environment.getExternalStoragePublicDirectory(
                         Environment.DIRECTORY_DOWNLOADS).absolutePath + "/Camera2Basic/Images/${dngFile.nameWithoutExtension}.dng")
                     val filePath = dngFile.parent
@@ -642,13 +553,15 @@ class CameraFragment : Fragment() {
                     if (rgbModelPath != null) {
                         if (rgbModelPath.isNotEmpty()) {
                             loadModel(rgbModelPath, isRaw = false)
-//                            val interpreter2 = createGpuInterpreter(requireContext(), "aaaa_simple_cnn_50.tflite")
+
                             if (bitmap != null) {
                                 val width = bitmap.width
                                 val height = bitmap.height
-//                                val execuModel = ExecuTorch.loadExceuTorchModel1(requireContext(), "Naveenrgbenhancementmodel.pte")
 
+
+                                if (filePath != null) {
                                     RGB2RGBExecuModel.runInferenceOnBitmap(bitmap, interpreter2,  filePath,fileName,width,height)
+                                }
 
                                 interpreter2.destroy()
                                 Log.d("CameraFragment", "Inference rgb completed successfully and RGB Exe closed.")
@@ -665,12 +578,14 @@ class CameraFragment : Fragment() {
                     if (rawModelPath != null) {
                         if (rawModelPath.isNotEmpty()) {
                             loadModel(rawModelPath, isRaw = true)
-                    val rawData = Raw2RawModelPipeline.convertRawToFloatArrayFast(rawImage) // to send data to model we first need to convert into float array
-                            val width = rawImage.width
-                            val height = rawImage.height
-                            if (rawData != null) {
-                                RAW2RAWExecuModel.runInferenceOnRaw(rawImage, interpreter, dngCreator, filePath,fileName)
-//                        Raw2RawModelPipeline.runInferenceOnRaw(rawImage, interpreter, dngCreator, filePath,fileName,width,height,bitmap)
+
+//                            val width = rawImage.width
+//                            val height = rawImage.height
+                            if (rawImage != null) {
+                                if (filePath != null) {
+                                    RAW2RAWExecuModel.runInferenceOnRaw(rawImage, interpreter, dngCreator, filePath,fileName)
+                                }
+
                         interpreter.destroy()
                         Log.d("RawInference", "Inference raw completed successfully and RAW Interpreter closed.")
                     }else {
@@ -680,7 +595,7 @@ class CameraFragment : Fragment() {
                     }
 
 
-                    rawImage.close();
+                    rawImage.close()
                     lifecycleScope.launch(Dispatchers.Main) {
                         if (isAdded) {
                             val toast = Toast.makeText(requireContext(), "Photo taken!", Toast.LENGTH_SHORT)
@@ -697,32 +612,6 @@ class CameraFragment : Fragment() {
 
 
             }
-
-//            ImageFormat.DEPTH_JPEG -> {
-//                try {
-//                    // Save the JPEG visual image
-//                    val buffer = result.image.planes[0].buffer
-//                    val bytes = ByteArray(buffer.remaining()).apply { buffer.get(this) }
-//                    val jpgFile = createFile(requireContext(), "jpg")
-//                    FileOutputStream(jpgFile).use { it.write(bytes) }
-//                    Log.d(TAG, "JPEG saved: ${jpgFile.absolutePath}")
-//
-//                    // Save the depth map (second plane)
-//                    val depthBuffer = result.image.planes[1].buffer
-//                    val depthBytes =
-//                        ByteArray(depthBuffer.remaining()).apply { depthBuffer.get(this) }
-//                    val depthFile = createFile(requireContext(), "depth")
-//                    FileOutputStream(depthFile).use { it.write(depthBytes) }
-//                    Log.d(TAG, "Depth map saved: ${depthFile.absolutePath}")
-//
-//                    // Resume coroutine with the JPEG file (primary file)
-//                    cont.resume(jpgFile)
-//
-//                } catch (exc: IOException) {
-//                    Log.e(TAG, "Unable to write Depth JPEG files", exc)
-//                    cont.resumeWithException(exc)
-//                }
-//            }
 
             else -> {
                 val exc = RuntimeException("Unknown image format: ${result.image.format}")
@@ -744,39 +633,6 @@ class CameraFragment : Fragment() {
         }
     }
 
-
-    private fun saveInputArrayAsImage(inputArray: FloatArray, width: Int, height: Int) {
-        try {
-            // Create a Bitmap to store the pixel data
-
-            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-            var index = 0
-
-            for (y in 0 until height) {
-                for (x in 0 until width) {
-                    // Extract RGB values from the FloatArray
-                    val r = (inputArray[index++] * 255).toInt().coerceIn(0, 255)
-                    val g = (inputArray[index++] * 255).toInt().coerceIn(0, 255)
-                    val b = (inputArray[index++] * 255).toInt().coerceIn(0, 255)
-
-                    // Reconstruct the pixel color
-                    val color = (255 shl 24) or (r shl 16) or (g shl 8) or b
-                    bitmap.setPixel(x, y, color)
-                }
-            }
-
-            // Save the reconstructed Bitmap to a file
-            val sdf = SimpleDateFormat("yyyy_MM_dd_HH_mm_ss_SSS", Locale.US)
-            val outputFile = File(requireContext().filesDir, "IMG_${sdf.format(Date())}_Input.jpg")
-            FileOutputStream(outputFile).use { outputStream ->
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream)
-            }
-
-            Log.d("SaveImage", "Input array saved as image: ${outputFile.absolutePath}")
-        } catch (e: Exception) {
-            Log.e("SaveImageError", "Failed to save input array as image: ${e.message}")
-        }
-    }
 
     override fun onStop() {
         super.onStop()
@@ -823,7 +679,7 @@ class CameraFragment : Fragment() {
          *
          * @return [File] created.
          */
-        private fun createFile(context: Context, extension: String): File {
+        private fun createFile(extension: String): File {
             val sdf = SimpleDateFormat("yyyy_MM_dd_HH_mm_ss_SSS", Locale.US)
             val filePath = Environment.getExternalStoragePublicDirectory(
                 Environment.DIRECTORY_DOWNLOADS).absolutePath + "/Camera2Basic/Images/"
