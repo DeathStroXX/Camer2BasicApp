@@ -89,7 +89,7 @@ import org.pytorch.executorch.Module
 
 import functionalities.RGB2RGBExecuModel
 import functionalities.RAW2RAWExecuModel
-
+import functionalities.ExecuTorch
 
 
 class CameraFragment : Fragment() {
@@ -166,33 +166,6 @@ class CameraFragment : Fragment() {
     /** Live data listener for changes in the device orientation relative to the camera */
     private lateinit var relativeOrientation: OrientationLiveData
 
-
-    private fun loadModel(filePath: String, isRaw: Boolean) {
-        try {
-            val file = File(filePath)
-            if (!file.exists()) {
-                Log.e("Model--", "Model file does not exist at path: $filePath")
-                return
-            }
-
-            if (isRaw) {
-                interpreter = Module.load(file.absolutePath)
-
-                Log.d("Model---", "Interpreter initialized for RAW successfully from $filePath")
-            } else {
-
-                Log.d("ExecuTorchModel", "Loading model from: ${file.absolutePath}")
-                interpreter2 = Module.load(file.absolutePath)
-                Log.d("ExecuTorchModel", "Model loaded successfully")
-
-
-                Log.d("Model---", "Interpreter initialized with GPU successfully.")
-                Log.d("Model---", "Interpreter initialized for RGB successfully from $filePath")
-            }
-        } catch (e: Exception) {
-            Log.e("Model--", "Failed to initialize interpreter: ${e.message}")
-        }
-    }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -552,7 +525,7 @@ class CameraFragment : Fragment() {
 //                   Ensure the Bitmap is not null before running inference
                     if (rgbModelPath != null) {
                         if (rgbModelPath.isNotEmpty()) {
-                            loadModel(rgbModelPath, isRaw = false)
+                            interpreter2= ExecuTorch.loadModel(rgbModelPath, isRaw = false)!!
 
                             if (bitmap != null) {
                                 val width = bitmap.width
@@ -577,7 +550,7 @@ class CameraFragment : Fragment() {
                     // Run inference on the raw image data directly from sensor
                     if (rawModelPath != null) {
                         if (rawModelPath.isNotEmpty()) {
-                            loadModel(rawModelPath, isRaw = true)
+                            interpreter= ExecuTorch.loadModel(rawModelPath, isRaw = true)!!
 
 //                            val width = rawImage.width
 //                            val height = rawImage.height
