@@ -3,20 +3,16 @@ package functionalities
 import android.hardware.camera2.DngCreator
 import android.media.Image
 import android.util.Log
-import org.tensorflow.lite.Interpreter
+
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.ShortBuffer
-import org.tensorflow.lite.Delegate
-//import org.tensorflow.lite.Tensor
-import org.tensorflow.lite.gpu.GpuDelegate
-import org.tensorflow.lite.nnapi.NnApiDelegate
+
 import org.pytorch.executorch.EValue
 import org.pytorch.executorch.Module
 import org.pytorch.executorch.Tensor
 
 object RAW2RAWExecuModel {
-
 
 
     fun runInferenceOnRaw(rawImg: Image, modelExecu: Module, dngCreator: DngCreator, filePath: String, fileName: String) {
@@ -31,10 +27,7 @@ object RAW2RAWExecuModel {
 
             val inputShape = inputTensor.shape()
             Log.d("runInferenceOnRaw", "Input tensor shape: ${inputShape.joinToString(",")}")
-            val inBatichSize = inputShape[0]
-            val inChannels = inputShape[1]
-            val inHeight = inputShape[2]
-            val inWidth = inputShape[3]
+
 
             val inputBufferProvided = inputArray?.take(20)?.joinToString(", ")
             Log.d("runInferenceOnRaw", "First 20 values of inputArray: [$inputBufferProvided]")
@@ -57,16 +50,6 @@ object RAW2RAWExecuModel {
             val outputChannels = outputShape[1].toInt()
             val height = outputShape[2].toInt()
             val width = outputShape[3].toInt()
-            val outputSize = width * height * outputChannels
-
-//            val outputData: ByteArray = outputTensor.dataAsUnsignedByteArray
-//            Log.d("runInferenceOnRaw", "Flattened output array 1D size: ${outputData.size}")
-//            val logValues = outputData.take(20).joinToString(", ")
-//            Log.d("runInferenceOnRaw", "First 20 values of outputArray1D: [$logValues]")
-//
-//            val minVal = outputData.minOrNull() ?: 0f
-//            val maxVal = outputData.maxOrNull() ?: 1f
-//            Log.d("OutputCheck", "Min value: $minVal, Max value: $maxVal")
 
             val newOutputShape = intArrayOf(1, outputChannels, height, width)
             //  Conditional logic based on output channels
@@ -88,9 +71,7 @@ object RAW2RAWExecuModel {
 
                 }
             }
-//            saveRawProcessedOutput(outputData, newOutputShape, dngCreator, filePath, fileName)
 
-//            saveRawProcessedOutput(outputArray1D, newOutputShape, dngCreator, filePath,fileName)
 
         } catch (e: Exception) {
             Log.e("ModelError", "Error during inference: ${e.message}")
@@ -104,72 +85,6 @@ object RAW2RAWExecuModel {
         filePathParent: String,
         fileNameParent: String,
     ) {
-//        try {
-//            val floatArray1D = output.dataAsFloatArray
-//            val channels = dimensions[1]  // Number of channels (1 for RAW, 4 for RGBA)
-//            val height = dimensions[2]    // Image height
-//            val width = dimensions[3]     // Image width
-//            val outputSize = width * height * channels
-//
-//
-//
-//            val minVal = floatArray1D.minOrNull()
-//            val maxVal = floatArray1D.maxOrNull()
-//            Log.d("saveRawProcessedOutpute", "Float value range: min=$minVal, max=$maxVal")
-//            val range = (maxVal?.minus(minVal!!)).takeIf { it!! > 0f } ?: 1f
-//
-//            Log.d("saveRawProcessedOutput", "Image Dimensions: Width=$width, Height=$height, Channels=$channels")
-//
-//
-//            val logValues = floatArray1D.take(20).joinToString(", ")
-//            Log.d("saveRawProcessedOutput", "First 20 values flattened output array: [$logValues]")
-//
-//            Log.d("saveRawProcessedOutput", "Flattened output array size: ${floatArray1D.size}")
-////            val byteBuffer = ByteBuffer.allocate(floatArray.size * 2).order(ByteOrder.LITTLE_ENDIAN)
-////            for (value in floatArray) {
-////                val scaledValue = (value * 65535).toInt().coerceIn(0, 65535)  // Normalize 0.0 - 1.0 to 0 - 65535
-////                byteBuffer.putShort(scaledValue.toShort())
-////            }
-//            val outputArray = Array(1) { FloatArray(outputSize) }
-//            for (i in 0 until outputSize) {
-//                outputArray[0][i] = floatArray1D[i]
-//            }
-//
-//// Step 2: Flatten it using your previous method
-//            val outputArray1D: FloatArray = if (outputArray.isNotEmpty()) {
-//                val innerArray = outputArray[0]
-//                FloatArray(innerArray.size) { i -> innerArray[i] }
-//            } else {
-//                FloatArray(0)
-//            }
-//
-//            val byteBuffer = ByteBuffer.allocate(outputArray1D.size * 2).order(ByteOrder.LITTLE_ENDIAN)
-//            for (value in outputArray1D) {
-//                val scaled = (value * 65535f).toInt().coerceIn(0, 65535)
-//                byteBuffer.putShort(scaled.toShort())
-//            }
-//
-////            val byteBuffer = ByteBuffer.allocate(reshaped.size * 2).order(ByteOrder.LITTLE_ENDIAN)
-////            for (value in reshaped) {
-////                val normalized = (value - minVal!!) / range
-////                val scaledValue = (normalized * 65535).toInt().coerceIn(0, 65535)
-//////                val scaledValue = (value * 65535).toInt().coerceIn(0, 65535)  // Normalize 0.0 - 1.0 to 0 - 65535
-////                byteBuffer.putShort(scaledValue.toShort())
-////            }
-//
-//            // Convert ByteArray (0-255) to 16-bit buffer (0-65535) for DNG
-//            Log.d("DNG-Save", "Converting byte array to 16-bit RAW buffer...")
-////            val byteBuffer = ByteBuffer.allocate(byteArray.size * 2).order(ByteOrder.LITTLE_ENDIAN)
-//
-//            Log.d("DNG-Save", "ByteArray conversion completed. Buffer size: ${byteBuffer.capacity()} bytes")
-//
-//            // Save to DNG
-//            SaveUtils.saveProcessedDngFile(dngCreator, byteBuffer, filePathParent, fileNameParent, width, height)
-//
-//        } catch (e: Exception) {
-//            Log.e("DNG-Save", "Error saving DNG file: ${e.message}")
-//            e.printStackTrace()
-//        }
         try {
             val floatArray1D = output.dataAsFloatArray
             val channels = dimensions[1] // Number of channels (1 for RAW)
@@ -226,15 +141,6 @@ object RAW2RAWExecuModel {
 
             Log.d("DNG-Upscale", "ByteBuffer filled with ${byteBuffer.capacity()} bytes.")
 
-            // Create ByteBuffer for 16-bit RAW data
-//            val byteBuffer = ByteBuffer.allocate(outputSize * 2).order(ByteOrder.LITTLE_ENDIAN)
-//            normalizedArray.forEach { value ->
-//                val scaled = (value * 65535f).toInt().coerceIn(0, 65535)
-//                byteBuffer.putShort(scaled.toShort())
-//            }
-//            byteBuffer.rewind() // Ensure buffer is ready for reading
-//
-//            Log.d("DNG-Save", "ByteBuffer created. Size: ${byteBuffer.capacity()} bytes")
 
             // Save to DNG
             SaveUtils.saveProcessedDngFile(dngCreator, byteBuffer, filePathParent, fileNameParent, width, height)
@@ -243,22 +149,14 @@ object RAW2RAWExecuModel {
         }
     }
 
-    fun convertRawToFloatArrayFast(rawImage: Image): FloatArray? {
+    private fun convertRawToFloatArrayFast(rawImage: Image): FloatArray? {
 
         try {
-            if (rawImage == null) {
-                Log.e("convertRawToFloat-", "rawImage is null")
-                return null
-            }
             val width = rawImage.width
             val height = rawImage.height
 
 
             val rawBuffer: ByteBuffer = rawImage.planes[0].buffer
-            if (rawBuffer == null) {
-                Log.e("convertRawToFloatAr--", "rawBuffer is null")
-                return null
-            }
 
             // Ensure the buffer is in the correct byte order (e.g., little-endian)
             rawBuffer.order(ByteOrder.LITTLE_ENDIAN)
@@ -274,7 +172,6 @@ object RAW2RAWExecuModel {
             val shortArray = ShortArray(shortBuffer.remaining())
             shortBuffer.get(shortArray)
 
-
             val floatArray = FloatArray(shortArray.size)
             // Find the min and max values of the shortArray
             val minValConvert = shortArray.minOrNull() ?: 0
@@ -284,15 +181,6 @@ object RAW2RAWExecuModel {
             for (i in shortArray.indices) {
                 floatArray[i] = (shortArray[i].toFloat() - minValConvert) / (maxValConvert - minValConvert)
             }
-
-
-            // Convert to FloatArray & Normalize (0-65535 → 0.0-1.0)
-//            val floatArray = FloatArray(shortArray.size)
-//            for (i in shortArray.indices) {
-//                floatArray[i] = shortArray[i].toFloat() / 65535f
-//            }
-
-
             // Log the first 100 values or fewer
             val logValues = floatArray.take(20).joinToString(", ")  // Prevents logging too much data
             Log.d("FloatArrayValues", "First 20 values: [$logValues]")
@@ -303,14 +191,12 @@ object RAW2RAWExecuModel {
             Log.d("FloatArrayRange", "Min: $minVal, Max: $maxVal")
 
 
-
             // Log min and max after resizing
             val min = floatArray.minOrNull() ?: 0f
             val max = floatArray.maxOrNull() ?: 0f
             Log.d("FloatArrayRange_After", "Min: $min, Max: $max")
 
             return  floatArray
-
 
         } catch (e: Exception) {
             Log.e("convertRawToFloatArray-", "Exception in convertRawToFloatArrayFast", e)
@@ -402,25 +288,4 @@ object RAW2RAWExecuModel {
         }
     }
 
-
-
-    fun checkModelExecution(interpreter: Interpreter, delegate: Delegate?) {
-        val executionType = when (delegate) {
-            is GpuDelegate -> "GPU"
-            is NnApiDelegate -> "NNAPI"
-            else -> "CPU (Default)"
-        }
-
-        // Check Floating Point Precision (FP32 or FP16)
-        val inputTensor: org.tensorflow.lite.Tensor? = interpreter.getInputTensor(0)
-        val tensorDataType = when (inputTensor?.dataType()) {
-            org.tensorflow.lite.DataType.FLOAT32 -> "FP32 (Float32)"
-//            org.tensorflow.lite.DataType.FLOAT16 -> "FP16 (Float16)"
-            else -> "Unknown Data Type"
-        }
-
-        // Log the results
-        Log.d("TFLite-Execution", "Running on: $executionType")
-        Log.d("TFLite-Precision", "Precision: $tensorDataType")
-    }
 }

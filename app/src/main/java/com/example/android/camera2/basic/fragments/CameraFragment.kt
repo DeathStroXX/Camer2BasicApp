@@ -19,8 +19,6 @@
 package com.example.android.camera2.basic.fragments
 
 
-
-
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
@@ -81,12 +79,9 @@ import java.util.concurrent.TimeoutException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
-
 import android.widget.TextView
 import android.widget.Toast
-
 import org.pytorch.executorch.Module
-
 import functionalities.RGB2RGBExecuModel
 import functionalities.RAW2RAWExecuModel
 import functionalities.ExecuTorch
@@ -121,15 +116,9 @@ class CameraFragment : Fragment() {
 
     /** Readers used as buffers for camera still shots */
     private lateinit var imageReader: ImageReader
-
-
     private lateinit var imageReaderRAW: ImageReader
-
-
     private lateinit var interpreter: Module
     private lateinit var interpreter2: Module
-
-
 
 
     /** [HandlerThread] where all camera operations run */
@@ -374,15 +363,11 @@ class CameraFragment : Fragment() {
         @Suppress("ControlFlowWithEmptyBody")
         while (imageReader.acquireNextImage() != null) {
         }
-        //Adding for
-
 
         // Start a new image queue
         val imageQueue = ArrayBlockingQueue<Image>(IMAGE_BUFFER_SIZE)
 
         val rawImageQueue = ArrayBlockingQueue<Image>(IMAGE_BUFFER_SIZE)  // Adding for raw
-
-
 
         imageReader.setOnImageAvailableListener({ reader ->
             val image = reader.acquireNextImage()
@@ -390,11 +375,6 @@ class CameraFragment : Fragment() {
             imageQueue.add(image)
         }, imageReaderHandler)
 
-//        Adding for Raw
-//        imageReaderRAW.setOnImageAvailableListener({ reader ->
-//            val image = reader.acquireNextImage()
-//            rawImageQueue.add(image)
-//        }, imageReaderHandler)
 
         imageReaderRAW.setOnImageAvailableListener({ reader ->
             val image = reader.acquireNextImage()
@@ -509,12 +489,8 @@ class CameraFragment : Fragment() {
 
                     val rawImage = result.image
 
-
-
                     val dngCreator = DngCreator(characteristics, result.metadata)
                     SaveUtils.saveDngAndMetaToGallery(requireContext(),dngCreator, dngFile,rawImage, result.metadata)
-
-
 
                     val dngFile = File(Environment.getExternalStoragePublicDirectory(
                         Environment.DIRECTORY_DOWNLOADS).absolutePath + "/Camera2Basic/Images/${dngFile.nameWithoutExtension}.dng")
@@ -582,8 +558,7 @@ class CameraFragment : Fragment() {
                     Log.e(TAG, "Unable to write DNG image to file", exc)
                     cont.resumeWithException(exc)
                 }
-
-
+                
             }
 
             else -> {
@@ -646,7 +621,6 @@ class CameraFragment : Fragment() {
         ) : Closeable {
             override fun close() = image.close()
         }
-
         /**
          * Create a [File] named a using formatted timestamp with the current date and time.
          *
@@ -658,8 +632,6 @@ class CameraFragment : Fragment() {
                 Environment.DIRECTORY_DOWNLOADS).absolutePath + "/Camera2Basic/Images/"
             return File(filePath, "IMG_${sdf.format(Date())}.$extension")
         }
-
-
 
     }
 }
