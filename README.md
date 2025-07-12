@@ -49,7 +49,7 @@ cd Camer2BasicApp
 
 - Connect your device via USB.
 - Select the device in Android Studio.
-- Click **Run ▶** to install and launch the app.
+- Click **Run** to install and launch the app.
 
 ---
 
