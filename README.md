@@ -29,8 +29,8 @@ The app is ideal for image enhancement, mobile ML experimentation, and RAW data 
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/<your-username>/<your-repo-name>.git
-cd <your-repo-name>
+git clone https://github.com/DeathStroXX/Camer2BasicApp.git
+cd Camer2BasicApp
 ```
 
 ### 2. Open in Android Studio
